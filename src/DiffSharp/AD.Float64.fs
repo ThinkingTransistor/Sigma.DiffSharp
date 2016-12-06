@@ -54,7 +54,8 @@ let [<Literal>] internal number0      = 0.
 let [<Literal>] internal number1      = 1.
 let [<Literal>] internal number2      = 2.
 
-let inline Backend               () = global.DiffSharp.Config.GlobalConfig.Float64Backend
+
+let inline Backend               () = global.DiffSharp.Config.GlobalConfig.BackendProvider.GetBackend().BackendHandle
 let inline VisualizationContrast () = global.DiffSharp.Config.GlobalConfig.Float64VisualizationContrast
 let inline FixedPointEpsilon     () = global.DiffSharp.Config.GlobalConfig.Float64FixedPointEpsilon
 let inline log10Val              () = log10ValFloat64

@@ -50,6 +50,10 @@ type BackendConfig<'T> =
       FixedPointMaxIterations: int
       VisualisationContrast : 'T }
 
+/// A backend provier which selects a backend based on the given object (D, DV, DM; for dynamic/multithreaded backends)
+type BackendProvider =
+    abstract member GetBackend<'T> : obj -> BackendConfig<'T> 
+
 /// Record type holding configuration parameters
 type Config =
     {BackendConfigFloat32 : BackendConfig<float32>
@@ -79,6 +83,9 @@ type GlobalConfig() =
                                     VisualisationContrast = 1.2}
          GrayscalePalette = GrayscalePaletteASCII}
 
+    static member BackendProvider : BackendProvider = DefaultBackendProvider() :> BackendProvider
+    static member Float32BackendConfig = C.BackendConfigFloat32
+    static member Float64BackendConfig = C.BackendConfigFloat64
     static member Float32Backend = C.BackendConfigFloat32.BackendHandle
     static member Float64Backend = C.BackendConfigFloat64.BackendHandle
     static member Float32Epsilon = C.BackendConfigFloat32.Epsilon
@@ -101,3 +108,14 @@ type GlobalConfig() =
                     BackendConfigFloat64 = { C.BackendConfigFloat64 with BackendHandle = OpenBLAS.Float64Backend() }
                    }
         | _ -> invalidArg "" "Unsupported backend. Try: OpenBLAS"
+
+and DefaultBackendProvider() = 
+    static let float32type = typeof<float32>
+    static let float64type = typeof<float>
+    
+    interface BackendProvider with
+        member b.GetBackend<'T> value =
+           match typeof<'T> with
+           | x when x = float32type -> (GlobalConfig.Float64BackendConfig :> obj) :?> BackendConfig<'T>
+           | x when x = float64type -> (GlobalConfig.Float32BackendConfig :> obj) :?> BackendConfig<'T>
+           | _ -> invalidArg "" "Unsupported type, try float32 or float"

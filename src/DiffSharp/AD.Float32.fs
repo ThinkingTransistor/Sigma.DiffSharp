@@ -54,12 +54,12 @@ let [<Literal>] internal number0      = 0.f
 let [<Literal>] internal number1      = 1.f
 let [<Literal>] internal number2      = 2.f
 
-let inline Backend               () = global.DiffSharp.Config.GlobalConfig.Float32Backend
+type number = float32
+
+let inline Backend               () = global.DiffSharp.Config.GlobalConfig.BackendProvider.GetBackend().BackendHandle
 let inline VisualizationContrast () = global.DiffSharp.Config.GlobalConfig.Float32VisualizationContrast
 let inline FixedPointEpsilon     () = global.DiffSharp.Config.GlobalConfig.Float32FixedPointEpsilon
 let inline log10Val              () = log10ValFloat32
-
-type number = float32
 
 /// Scalar numeric type keeping dual numbers for forward mode and adjoints and tapes for reverse mode AD, with nesting capability, using tags to avoid perturbation confusion
 [<CustomEquality; CustomComparison>]
