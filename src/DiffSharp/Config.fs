@@ -100,7 +100,7 @@ type GlobalConfig() =
     static member Float32VisualizationContrast = C.BackendConfigFloat32.VisualisationContrast
     static member Float64VisualizationContrast = C.BackendConfigFloat64.VisualisationContrast
     static member GrayscalePalette = C.GrayscalePalette
-    static member SetBackend(backend:string) =
+    static member SetDefaultBackend(backend:string) =
         match backend with
         | "OpenBLAS" ->
             C <- {C with
