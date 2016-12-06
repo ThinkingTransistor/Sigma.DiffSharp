@@ -228,7 +228,7 @@ let main argv =
             for i = 0 to maprepeat do
                 v <- 4. * v * (1. - v)
             v
-        let fssD (x:D) =
+        let fssD (x:DNumber) =
             let mutable v = x
             for i = 0 to maprepeat do
                 v <- 4. * v * (1. - v)
@@ -246,7 +246,7 @@ let main argv =
 
         let fvs (x:float[]) =
             x |> Array.sumBy (fun v -> v * log (v / 2.))
-        let fvsD (x:DV) =
+        let fvsD (x:DVector) =
             x * (log (x / 2.))
         let _, _ =  duration n (fun () -> DiffSharp.AD.Float64.DiffOps.grad fvsD xvD)
 
@@ -254,7 +254,7 @@ let main argv =
             [|x |> Array.sumBy (fun v -> v * log (v / 2.))
               x |> Array.sumBy (fun v -> exp (sin v))
               x |> Array.sumBy (fun v -> exp (cos v))|]
-        let fvvD (x:DV) =
+        let fvvD (x:DVector) =
             toDV [x * log (x / 2.); exp (sin x) |> DV.sum; exp (cos x) |> DV.sum]
         let _, _ =  duration n (fun () -> DiffSharp.AD.Float64.DiffOps.jacobian fvvD xvD)
 

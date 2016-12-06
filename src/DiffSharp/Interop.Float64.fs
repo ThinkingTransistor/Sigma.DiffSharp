@@ -41,17 +41,17 @@ namespace DiffSharp.Interop.Float64
 
 open DiffSharp.Util
 
-type internal ADD = DiffSharp.AD.Float64.D
+type internal ADD = DiffSharp.AD.Float64.DNumber
 
-and D(x:ADD) =
-    new(x:float) = D(ADD.D(x))
+and DNumber(x:ADD) =
+    new(x:float) = DNumber(ADD.D(x))
     member internal this.toADD() = x
-    static member internal ADDtoD (x:ADD) = new D(x)
-    static member internal DtoADD (x:D) = x.toADD()
+    static member internal ADDtoD (x:ADD) = new DNumber(x)
+    static member internal DtoADD (x:DNumber) = x.toADD()
 
-    member d.P = d.toADD().P |> D.ADDtoD
-    member d.T = d.toADD().T |> D.ADDtoD
-    member d.A = d.toADD().A |> D.ADDtoD
+    member d.P = d.toADD().P |> DNumber.ADDtoD
+    member d.T = d.toADD().T |> DNumber.ADDtoD
+    member d.A = d.toADD().A |> DNumber.ADDtoD
 
     override d.ToString() =
         let rec s (d:ADD) =
@@ -60,95 +60,95 @@ and D(x:ADD) =
             | DiffSharp.AD.Float64.DF(p,t,_) -> sprintf "DF (%A, %A)" (s p) (s t)
             | DiffSharp.AD.Float64.DR(p,a,_,_,_) -> sprintf "DR (%A, %A)"  (s p) (s !a)
         s (d.toADD())
-    static member op_Implicit(d:D):float = float (d.toADD())
-    static member op_Implicit(a:float):D = D(a)
-    static member Zero = D(0.)
-    static member One = D(1.)
+    static member op_Implicit(d:DNumber):float = float (d.toADD())
+    static member op_Implicit(a:float):DNumber = DNumber(a)
+    static member Zero = DNumber(0.)
+    static member One = DNumber(1.)
     interface System.IComparable with
         override d.CompareTo(other) =
             match other with
-            | :? D as d2 -> compare (d.toADD()) (d2.toADD())
+            | :? DNumber as d2 -> compare (d.toADD()) (d2.toADD())
             | _ -> invalidArg "" "Cannot compare this D with another type of object."
     override d.Equals(other) =
         match other with
-        | :? D as d2 -> compare (d.toADD()) (d2.toADD()) = 0
+        | :? DNumber as d2 -> compare (d.toADD()) (d2.toADD()) = 0
         | _ -> false
     override d.GetHashCode() = d.toADD().GetHashCode()
     // D - D binary operations
-    static member (+) (a:D, b:D) = D(a.toADD() + b.toADD())
-    static member (-) (a:D, b:D) = D(a.toADD() - b.toADD())
-    static member (*) (a:D, b:D) = D(a.toADD() * b.toADD())
-    static member (/) (a:D, b:D) = D(a.toADD() / b.toADD())
-    static member Pow (a:D, b:D) = D(a.toADD() ** b.toADD())
-    static member Atan2 (a:D, b:D) = D(atan2 (a.toADD()) (b.toADD()))
+    static member (+) (a:DNumber, b:DNumber) = DNumber(a.toADD() + b.toADD())
+    static member (-) (a:DNumber, b:DNumber) = DNumber(a.toADD() - b.toADD())
+    static member (*) (a:DNumber, b:DNumber) = DNumber(a.toADD() * b.toADD())
+    static member (/) (a:DNumber, b:DNumber) = DNumber(a.toADD() / b.toADD())
+    static member Pow (a:DNumber, b:DNumber) = DNumber(a.toADD() ** b.toADD())
+    static member Atan2 (a:DNumber, b:DNumber) = DNumber(atan2 (a.toADD()) (b.toADD()))
     // D - float binary operations
-    static member (+) (a:D, b:float) = a + (D b)
-    static member (-) (a:D, b:float) = a - (D b)
-    static member (*) (a:D, b:float) = a * (D b)
-    static member (/) (a:D, b:float) = a / (D b)
-    static member Pow (a:D, b:float) = a ** (D b)
-    static member Atan2 (a:D, b:float) = atan2 a (D b)
+    static member (+) (a:DNumber, b:float) = a + (DNumber b)
+    static member (-) (a:DNumber, b:float) = a - (DNumber b)
+    static member (*) (a:DNumber, b:float) = a * (DNumber b)
+    static member (/) (a:DNumber, b:float) = a / (DNumber b)
+    static member Pow (a:DNumber, b:float) = a ** (DNumber b)
+    static member Atan2 (a:DNumber, b:float) = atan2 a (DNumber b)
     // float - D binary operations
-    static member (+) (a:float, b:D) = (D a) + b
-    static member (-) (a:float, b:D) = (D a) - b
-    static member (*) (a:float, b:D) = (D a) * b
-    static member (/) (a:float, b:D) = (D a) / b
-    static member Pow (a:float, b:D) = (D a) ** b
-    static member Atan2 (a:float, b:D) = atan2 (D a) b
+    static member (+) (a:float, b:DNumber) = (DNumber a) + b
+    static member (-) (a:float, b:DNumber) = (DNumber a) - b
+    static member (*) (a:float, b:DNumber) = (DNumber a) * b
+    static member (/) (a:float, b:DNumber) = (DNumber a) / b
+    static member Pow (a:float, b:DNumber) = (DNumber a) ** b
+    static member Atan2 (a:float, b:DNumber) = atan2 (DNumber a) b
     // D - int binary operations
-    static member (+) (a:D, b:int) = a + (D (float b))
-    static member (-) (a:D, b:int) = a - (D (float b))
-    static member (*) (a:D, b:int) = a * (D (float b))
-    static member (/) (a:D, b:int) = a / (D (float b))
-    static member Pow (a:D, b:int) = D.Pow(a, (D (float b)))
-    static member Atan2 (a:D, b:int) = D.Atan2(a, (D (float b)))
+    static member (+) (a:DNumber, b:int) = a + (DNumber (float b))
+    static member (-) (a:DNumber, b:int) = a - (DNumber (float b))
+    static member (*) (a:DNumber, b:int) = a * (DNumber (float b))
+    static member (/) (a:DNumber, b:int) = a / (DNumber (float b))
+    static member Pow (a:DNumber, b:int) = DNumber.Pow(a, (DNumber (float b)))
+    static member Atan2 (a:DNumber, b:int) = DNumber.Atan2(a, (DNumber (float b)))
     // int - D binary operations
-    static member (+) (a:int, b:D) = (D (float a)) + b
-    static member (-) (a:int, b:D) = (D (float a)) - b
-    static member (*) (a:int, b:D) = (D (float a)) * b
-    static member (/) (a:int, b:D) = (D (float a)) / b
-    static member Pow (a:int, b:D) = D.Pow((D (float a)), b)
-    static member Atan2 (a:int, b:D) = D.Atan2((D (float a)), b)
+    static member (+) (a:int, b:DNumber) = (DNumber (float a)) + b
+    static member (-) (a:int, b:DNumber) = (DNumber (float a)) - b
+    static member (*) (a:int, b:DNumber) = (DNumber (float a)) * b
+    static member (/) (a:int, b:DNumber) = (DNumber (float a)) / b
+    static member Pow (a:int, b:DNumber) = DNumber.Pow((DNumber (float a)), b)
+    static member Atan2 (a:int, b:DNumber) = DNumber.Atan2((DNumber (float a)), b)
     // D unary operations
-    static member Log (a:D) = D(log (a.toADD()))
-    static member Log10 (a:D) = D(log10 (a.toADD()))
-    static member Exp (a:D) = D(exp (a.toADD()))
-    static member Sin (a:D) = D(sin (a.toADD()))
-    static member Cos (a:D) = D(cos (a.toADD()))
-    static member Tan (a:D) = D(tan (a.toADD()))
-    static member Neg (a:D) = D(-(a.toADD()))
-    static member Sqrt (a:D) = D(sqrt (a.toADD()))
-    static member Sinh (a:D) = D(sinh (a.toADD()))
-    static member Cosh (a:D) = D(cosh (a.toADD()))
-    static member Tanh (a:D) = D(tanh (a.toADD()))
-    static member Asin (a:D) = D(asin (a.toADD()))
-    static member Acos (a:D) = D(acos (a.toADD()))
-    static member Atan (a:D) = D(atan (a.toADD()))
-    static member Abs (a:D) = D(abs (a.toADD()))
-    static member Floor (a:D) = D(floor (a.toADD()))
-    static member Ceiling (a:D) = D(ceil (a.toADD()))
-    static member Round (a:D) = D(round (a.toADD()))
-    static member Sign (a:D) = D(ADD.Sign(a.toADD()))
-    static member SoftPlus (a:D) = D(ADD.SoftPlus(a.toADD()))
-    static member SoftSign (a:D) = D(ADD.SoftSign(a.toADD()))
-    static member Max (a:D, b:D) = D(ADD.Max(a.toADD(), b.toADD()))
-    static member Min (a:D, b:D) = D(ADD.Min(a.toADD(), b.toADD()))
+    static member Log (a:DNumber) = DNumber(log (a.toADD()))
+    static member Log10 (a:DNumber) = DNumber(log10 (a.toADD()))
+    static member Exp (a:DNumber) = DNumber(exp (a.toADD()))
+    static member Sin (a:DNumber) = DNumber(sin (a.toADD()))
+    static member Cos (a:DNumber) = DNumber(cos (a.toADD()))
+    static member Tan (a:DNumber) = DNumber(tan (a.toADD()))
+    static member Neg (a:DNumber) = DNumber(-(a.toADD()))
+    static member Sqrt (a:DNumber) = DNumber(sqrt (a.toADD()))
+    static member Sinh (a:DNumber) = DNumber(sinh (a.toADD()))
+    static member Cosh (a:DNumber) = DNumber(cosh (a.toADD()))
+    static member Tanh (a:DNumber) = DNumber(tanh (a.toADD()))
+    static member Asin (a:DNumber) = DNumber(asin (a.toADD()))
+    static member Acos (a:DNumber) = DNumber(acos (a.toADD()))
+    static member Atan (a:DNumber) = DNumber(atan (a.toADD()))
+    static member Abs (a:DNumber) = DNumber(abs (a.toADD()))
+    static member Floor (a:DNumber) = DNumber(floor (a.toADD()))
+    static member Ceiling (a:DNumber) = DNumber(ceil (a.toADD()))
+    static member Round (a:DNumber) = DNumber(round (a.toADD()))
+    static member Sign (a:DNumber) = DNumber(ADD.Sign(a.toADD()))
+    static member SoftPlus (a:DNumber) = DNumber(ADD.SoftPlus(a.toADD()))
+    static member SoftSign (a:DNumber) = DNumber(ADD.SoftSign(a.toADD()))
+    static member Max (a:DNumber, b:DNumber) = DNumber(ADD.Max(a.toADD(), b.toADD()))
+    static member Min (a:DNumber, b:DNumber) = DNumber(ADD.Min(a.toADD(), b.toADD()))
 
-and internal ADDV = DiffSharp.AD.Float64.DV
+and internal ADDV = DiffSharp.AD.Float64.DVector
 
-and DV(v:ADDV) =
-    new(v:float[]) = DV(ADDV.DV(v))
-    new(v:D[]) = DV(DiffSharp.AD.Float64.DOps.toDV(v |> Array.map D.DtoADD))
+and DVector(v:ADDV) =
+    new(v:float[]) = DVector(ADDV.DV(v))
+    new(v:DNumber[]) = DVector(DiffSharp.AD.Float64.DOps.toDV(v |> Array.map DNumber.DtoADD))
     member internal this.toADDV() = v
-    static member internal ADDVtoDV (v:ADDV) = new DV(v)
-    static member internal DVtoADDV (v:DV) = v.toADDV()
+    static member internal ADDVtoDV (v:ADDV) = new DVector(v)
+    static member internal DVtoADDV (v:DVector) = v.toADDV()
 
-    member d.P = d.toADDV().P |> DV.ADDVtoDV
-    member d.T = d.toADDV().T |> DV.ADDVtoDV
-    member d.A = d.toADDV().A |> DV.ADDVtoDV
+    member d.P = d.toADDV().P |> DVector.ADDVtoDV
+    member d.T = d.toADDV().T |> DVector.ADDVtoDV
+    member d.A = d.toADDV().A |> DVector.ADDVtoDV
 
     member d.Item
-        with get i = d.toADDV().[i] |> D.ADDtoD
+        with get i = d.toADDV().[i] |> DNumber.ADDtoD
 
     override d.ToString() =
         let rec s (d:ADDV) =
@@ -158,113 +158,113 @@ and DV(v:ADDV) =
             | DiffSharp.AD.Float64.DVR(p,a,_,_,_) -> sprintf "DVR (%A, %A)" (s p) (s !a)
         s (d.toADDV())
     member d.Visualize() = d.toADDV().Visualize()
-    static member op_Implicit(d:DV):float[] = ADDV.op_Explicit(d.toADDV())
-    static member op_Implicit(a:float[]):DV = DV(a)
-    static member Zero = DV(Array.empty<float>)
+    static member op_Implicit(d:DVector):float[] = ADDV.op_Explicit(d.toADDV())
+    static member op_Implicit(a:float[]):DVector = DVector(a)
+    static member Zero = DVector(Array.empty<float>)
     // DV - DV binary operations
-    static member (+) (a:DV, b:DV) = DV(a.toADDV() + b.toADDV())
-    static member (-) (a:DV, b:DV) = DV(a.toADDV() - b.toADDV())
-    static member (*) (a:DV, b:DV) = D(a.toADDV() * b.toADDV())
-    static member (.*) (a:DV, b:DV) = DV(a.toADDV() .* b.toADDV())
-    static member (&*) (a:DV, b:DV) = DM(a.toADDV() &* b.toADDV())
-    static member (./) (a:DV, b:DV) = DV(a.toADDV() ./ b.toADDV())
-    static member Pow (a:DV, b:DV) = DV(a.toADDV() ** b.toADDV())
-    static member Atan2 (a:DV, b:DV) = DV(atan2 (a.toADDV()) (b.toADDV()))
+    static member (+) (a:DVector, b:DVector) = DVector(a.toADDV() + b.toADDV())
+    static member (-) (a:DVector, b:DVector) = DVector(a.toADDV() - b.toADDV())
+    static member (*) (a:DVector, b:DVector) = DNumber(a.toADDV() * b.toADDV())
+    static member (.*) (a:DVector, b:DVector) = DVector(a.toADDV() .* b.toADDV())
+    static member (&*) (a:DVector, b:DVector) = DMatrix(a.toADDV() &* b.toADDV())
+    static member (./) (a:DVector, b:DVector) = DVector(a.toADDV() ./ b.toADDV())
+    static member Pow (a:DVector, b:DVector) = DVector(a.toADDV() ** b.toADDV())
+    static member Atan2 (a:DVector, b:DVector) = DVector(atan2 (a.toADDV()) (b.toADDV()))
     // DV - D binary operations
-    static member (+) (a:DV, b:D) = DV(a.toADDV() + b.toADD())
-    static member (-) (a:DV, b:D) = DV(a.toADDV() - b.toADD())
-    static member (*) (a:DV, b:D) = DV(a.toADDV() * b.toADD())
-    static member (/) (a:DV, b:D) = DV(a.toADDV() / b.toADD())
-    static member Pow (a:DV, b:D) = DV(a.toADDV() ** b.toADD())
-    static member Atan2 (a:DV, b:D) = DV(ADDV.Atan2(a.toADDV(), b.toADD()))
+    static member (+) (a:DVector, b:DNumber) = DVector(a.toADDV() + b.toADD())
+    static member (-) (a:DVector, b:DNumber) = DVector(a.toADDV() - b.toADD())
+    static member (*) (a:DVector, b:DNumber) = DVector(a.toADDV() * b.toADD())
+    static member (/) (a:DVector, b:DNumber) = DVector(a.toADDV() / b.toADD())
+    static member Pow (a:DVector, b:DNumber) = DVector(a.toADDV() ** b.toADD())
+    static member Atan2 (a:DVector, b:DNumber) = DVector(ADDV.Atan2(a.toADDV(), b.toADD()))
     // D - DV binary operations
-    static member (+) (a:D, b:DV) = DV(a.toADD() + b.toADDV())
-    static member (-) (a:D, b:DV) = DV(a.toADD() - b.toADDV())
-    static member (*) (a:D, b:DV) = DV(a.toADD() * b.toADDV())
-    static member (/) (a:D, b:DV) = DV(a.toADD() / b.toADDV())
-    static member Pow (a:D, b:DV) = DV(ADDV.Pow(a.toADD(), b.toADDV()))
-    static member Atan2 (a:D, b:DV) = DV(ADDV.Atan2(a.toADD(), b.toADDV()))
+    static member (+) (a:DNumber, b:DVector) = DVector(a.toADD() + b.toADDV())
+    static member (-) (a:DNumber, b:DVector) = DVector(a.toADD() - b.toADDV())
+    static member (*) (a:DNumber, b:DVector) = DVector(a.toADD() * b.toADDV())
+    static member (/) (a:DNumber, b:DVector) = DVector(a.toADD() / b.toADDV())
+    static member Pow (a:DNumber, b:DVector) = DVector(ADDV.Pow(a.toADD(), b.toADDV()))
+    static member Atan2 (a:DNumber, b:DVector) = DVector(ADDV.Atan2(a.toADD(), b.toADDV()))
     // DV - float binary operations
-    static member (+) (a:DV, b:float) = a + (D b)
-    static member (-) (a:DV, b:float) = a - (D b)
-    static member (*) (a:DV, b:float) = a * (D b)
-    static member (/) (a:DV, b:float) = a / (D b)
-    static member Pow (a:DV, b:float) = a ** (D b)
-    static member Atan2 (a:DV, b:float) = DV.Atan2(a, D b)
+    static member (+) (a:DVector, b:float) = a + (DNumber b)
+    static member (-) (a:DVector, b:float) = a - (DNumber b)
+    static member (*) (a:DVector, b:float) = a * (DNumber b)
+    static member (/) (a:DVector, b:float) = a / (DNumber b)
+    static member Pow (a:DVector, b:float) = a ** (DNumber b)
+    static member Atan2 (a:DVector, b:float) = DVector.Atan2(a, DNumber b)
     // float - DV binary operations
-    static member (+) (a:float, b:DV) = (D a) + b
-    static member (-) (a:float, b:DV) = (D a) - b
-    static member (*) (a:float, b:DV) = (D a) * b
-    static member (/) (a:float, b:DV) = (D a) / b
-    static member Pow (a:float, b:DV) = DV.Pow(D a, b)
-    static member Atan2 (a:float, b:DV) = DV.Atan2(D a, b)
+    static member (+) (a:float, b:DVector) = (DNumber a) + b
+    static member (-) (a:float, b:DVector) = (DNumber a) - b
+    static member (*) (a:float, b:DVector) = (DNumber a) * b
+    static member (/) (a:float, b:DVector) = (DNumber a) / b
+    static member Pow (a:float, b:DVector) = DVector.Pow(DNumber a, b)
+    static member Atan2 (a:float, b:DVector) = DVector.Atan2(DNumber a, b)
     // DV - int binary operations
-    static member (+) (a:DV, b:int) = a + (D (float b))
-    static member (-) (a:DV, b:int) = a - (D (float b))
-    static member (*) (a:DV, b:int) = a * (D (float b))
-    static member (/) (a:DV, b:int) = a / (D (float b))
-    static member Pow (a:DV, b:int) = DV.Pow(a, (D (float b)))
-    static member Atan2 (a:DV, b:int) = DV.Atan2(a, (D (float b)))
+    static member (+) (a:DVector, b:int) = a + (DNumber (float b))
+    static member (-) (a:DVector, b:int) = a - (DNumber (float b))
+    static member (*) (a:DVector, b:int) = a * (DNumber (float b))
+    static member (/) (a:DVector, b:int) = a / (DNumber (float b))
+    static member Pow (a:DVector, b:int) = DVector.Pow(a, (DNumber (float b)))
+    static member Atan2 (a:DVector, b:int) = DVector.Atan2(a, (DNumber (float b)))
     // int - DV binary operations
-    static member (+) (a:int, b:DV) = (D (float a)) + b
-    static member (-) (a:int, b:DV) = (D (float a)) - b
-    static member (*) (a:int, b:DV) = (D (float a)) * b
-    static member (/) (a:int, b:DV) = (D (float a)) / b
-    static member Pow (a:int, b:DV) = DV.Pow((D (float a)), b)
-    static member Atan2 (a:int, b:DV) = DV.Atan2((D (float a)), b)
+    static member (+) (a:int, b:DVector) = (DNumber (float a)) + b
+    static member (-) (a:int, b:DVector) = (DNumber (float a)) - b
+    static member (*) (a:int, b:DVector) = (DNumber (float a)) * b
+    static member (/) (a:int, b:DVector) = (DNumber (float a)) / b
+    static member Pow (a:int, b:DVector) = DVector.Pow((DNumber (float a)), b)
+    static member Atan2 (a:int, b:DVector) = DVector.Atan2((DNumber (float a)), b)
     // DV unary operations
-    static member Log (a:DV) = DV(log (a.toADDV()))
-    static member Log10 (a:DV) = DV(log10 (a.toADDV()))
-    static member Exp (a:DV) = DV(exp (a.toADDV()))
-    static member Sin (a:DV) = DV(sin (a.toADDV()))
-    static member Cos (a:DV) = DV(cos (a.toADDV()))
-    static member Tan (a:DV) = DV(tan (a.toADDV()))
-    static member Neg (a:DV) = DV(-(a.toADDV()))
-    static member Sqrt (a:DV) = DV(sqrt (a.toADDV()))
-    static member Sinh (a:DV) = DV(sinh (a.toADDV()))
-    static member Cosh (a:DV) = DV(cosh (a.toADDV()))
-    static member Tanh (a:DV) = DV(tanh (a.toADDV()))
-    static member Asin (a:DV) = DV(asin (a.toADDV()))
-    static member Acos (a:DV) = DV(acos (a.toADDV()))
-    static member Atan (a:DV) = DV(atan (a.toADDV()))
-    static member Abs (a:DV) = DV(abs (a.toADDV()))
-    static member Floor (a:DV) = DV(floor (a.toADDV()))
-    static member Ceiling (a:DV) = DV(ceil (a.toADDV()))
-    static member Round (a:DV) = DV(round (a.toADDV()))
-    static member Sign (a:DV) = DV(ADDV.Sign(a.toADDV()))
-    static member SoftPlus (a:DV) = DV(ADDV.SoftPlus(a.toADDV()))
-    static member SoftSign (a:DV) = DV(ADDV.SoftSign(a.toADDV()))
-    static member Max (a:DV, b:DV) = DV(ADDV.Max(a.toADDV(), b.toADDV()))
-    static member Min (a:DV, b:DV) = DV(ADDV.Min(a.toADDV(), b.toADDV()))
-    static member Sum (a:DV) = D(ADDV.Sum(a.toADDV()))
-    static member L1Norm (a:DV) = D(ADDV.L1Norm(a.toADDV()))
-    static member L2Norm (a:DV) = D(ADDV.L2Norm(a.toADDV()))
-    static member L2NormSq (a:DV) = D(ADDV.L2NormSq(a.toADDV()))
-    static member Max (a:DV) = D(ADDV.Max(a.toADDV()))
-    static member MaxIndex (a:DV) = ADDV.MaxIndex(a.toADDV())
-    static member Min (a:DV) = D(ADDV.Min(a.toADDV()))
-    static member MinIndex (a:DV) = ADDV.MinIndex(a.toADDV())
-    static member SoftMax (a:DV) = DV(ADDV.SoftMax(a.toADDV()))
-    static member Mean (a:DV) = D(ADDV.Mean(a.toADDV()))
-    static member StandardDev (a:DV) = D(ADDV.StandardDev(a.toADDV()))
-    static member Variance (a:DV) = D(ADDV.Variance(a.toADDV()))
-    static member Normalize (a:DV) = DV(ADDV.Normalize(a.toADDV()))
-    static member Standardize (a:DV) = DV(ADDV.Standardize(a.toADDV()))
+    static member Log (a:DVector) = DVector(log (a.toADDV()))
+    static member Log10 (a:DVector) = DVector(log10 (a.toADDV()))
+    static member Exp (a:DVector) = DVector(exp (a.toADDV()))
+    static member Sin (a:DVector) = DVector(sin (a.toADDV()))
+    static member Cos (a:DVector) = DVector(cos (a.toADDV()))
+    static member Tan (a:DVector) = DVector(tan (a.toADDV()))
+    static member Neg (a:DVector) = DVector(-(a.toADDV()))
+    static member Sqrt (a:DVector) = DVector(sqrt (a.toADDV()))
+    static member Sinh (a:DVector) = DVector(sinh (a.toADDV()))
+    static member Cosh (a:DVector) = DVector(cosh (a.toADDV()))
+    static member Tanh (a:DVector) = DVector(tanh (a.toADDV()))
+    static member Asin (a:DVector) = DVector(asin (a.toADDV()))
+    static member Acos (a:DVector) = DVector(acos (a.toADDV()))
+    static member Atan (a:DVector) = DVector(atan (a.toADDV()))
+    static member Abs (a:DVector) = DVector(abs (a.toADDV()))
+    static member Floor (a:DVector) = DVector(floor (a.toADDV()))
+    static member Ceiling (a:DVector) = DVector(ceil (a.toADDV()))
+    static member Round (a:DVector) = DVector(round (a.toADDV()))
+    static member Sign (a:DVector) = DVector(ADDV.Sign(a.toADDV()))
+    static member SoftPlus (a:DVector) = DVector(ADDV.SoftPlus(a.toADDV()))
+    static member SoftSign (a:DVector) = DVector(ADDV.SoftSign(a.toADDV()))
+    static member Max (a:DVector, b:DVector) = DVector(ADDV.Max(a.toADDV(), b.toADDV()))
+    static member Min (a:DVector, b:DVector) = DVector(ADDV.Min(a.toADDV(), b.toADDV()))
+    static member Sum (a:DVector) = DNumber(ADDV.Sum(a.toADDV()))
+    static member L1Norm (a:DVector) = DNumber(ADDV.L1Norm(a.toADDV()))
+    static member L2Norm (a:DVector) = DNumber(ADDV.L2Norm(a.toADDV()))
+    static member L2NormSq (a:DVector) = DNumber(ADDV.L2NormSq(a.toADDV()))
+    static member Max (a:DVector) = DNumber(ADDV.Max(a.toADDV()))
+    static member MaxIndex (a:DVector) = ADDV.MaxIndex(a.toADDV())
+    static member Min (a:DVector) = DNumber(ADDV.Min(a.toADDV()))
+    static member MinIndex (a:DVector) = ADDV.MinIndex(a.toADDV())
+    static member SoftMax (a:DVector) = DVector(ADDV.SoftMax(a.toADDV()))
+    static member Mean (a:DVector) = DNumber(ADDV.Mean(a.toADDV()))
+    static member StandardDev (a:DVector) = DNumber(ADDV.StandardDev(a.toADDV()))
+    static member Variance (a:DVector) = DNumber(ADDV.Variance(a.toADDV()))
+    static member Normalize (a:DVector) = DVector(ADDV.Normalize(a.toADDV()))
+    static member Standardize (a:DVector) = DVector(ADDV.Standardize(a.toADDV()))
 
-and ADDM = DiffSharp.AD.Float64.DM
+and ADDM = DiffSharp.AD.Float64.DMatrix
 
-and DM(m:ADDM) =
-    new(m:float[,]) = DM(ADDM.DM(m))
+and DMatrix(m:ADDM) =
+    new(m:float[,]) = DMatrix(ADDM.DM(m))
     member internal this.toADDM() = m
-    static member internal ADDMtoDM (x:ADDM) = new DM(x)
-    static member internal DMtoADDM (x:DM) = x.toADDM()
+    static member internal ADDMtoDM (x:ADDM) = new DMatrix(x)
+    static member internal DMtoADDM (x:DMatrix) = x.toADDM()
 
-    member d.P = d.toADDM().P |> DM.ADDMtoDM
-    member d.T = d.toADDM().T |> DM.ADDMtoDM
-    member d.A = d.toADDM().A |> DM.ADDMtoDM
+    member d.P = d.toADDM().P |> DMatrix.ADDMtoDM
+    member d.T = d.toADDM().T |> DMatrix.ADDMtoDM
+    member d.A = d.toADDM().A |> DMatrix.ADDMtoDM
 
     member d.Item
-        with get (i, j) = d.toADDM().[i, j] |> D.ADDtoD
+        with get (i, j) = d.toADDM().[i, j] |> DNumber.ADDtoD
 
     override d.ToString() =
         let rec s (d:ADDM) =
@@ -274,156 +274,156 @@ and DM(m:ADDM) =
             | DiffSharp.AD.Float64.DMR(p,a,_,_,_) -> sprintf "DMR (%A, %A)" (s p) (s !a)
         s (d.toADDM())
     member d.Visualize() = d.toADDM().Visualize()
-    static member op_Implicit(d:DM):float[,] = ADDM.op_Explicit(d.toADDM())
-    static member op_Implicit(a:float[,]):DM = DM(a)
-    static member Zero = DM(Array2D.empty)
+    static member op_Implicit(d:DMatrix):float[,] = ADDM.op_Explicit(d.toADDM())
+    static member op_Implicit(a:float[,]):DMatrix = DMatrix(a)
+    static member Zero = DMatrix(Array2D.empty)
 
     // DV - DV binary operations
-    static member (+) (a:DM, b:DM) = DM(a.toADDM() + b.toADDM())
-    static member (-) (a:DM, b:DM) = DM(a.toADDM() - b.toADDM())
-    static member (*) (a:DM, b:DM) = DM(a.toADDM() * b.toADDM())
-    static member (.*) (a:DM, b:DM) = DM(a.toADDM() .* b.toADDM())
-    static member (./) (a:DM, b:DM) = DM(a.toADDM() ./ b.toADDM())
-    static member Pow (a:DM, b:DM) = DM(a.toADDM() ** b.toADDM())
-    static member Atan2 (a:DM, b:DM) = DM(atan2 (a.toADDM()) (b.toADDM()))
+    static member (+) (a:DMatrix, b:DMatrix) = DMatrix(a.toADDM() + b.toADDM())
+    static member (-) (a:DMatrix, b:DMatrix) = DMatrix(a.toADDM() - b.toADDM())
+    static member (*) (a:DMatrix, b:DMatrix) = DMatrix(a.toADDM() * b.toADDM())
+    static member (.*) (a:DMatrix, b:DMatrix) = DMatrix(a.toADDM() .* b.toADDM())
+    static member (./) (a:DMatrix, b:DMatrix) = DMatrix(a.toADDM() ./ b.toADDM())
+    static member Pow (a:DMatrix, b:DMatrix) = DMatrix(a.toADDM() ** b.toADDM())
+    static member Atan2 (a:DMatrix, b:DMatrix) = DMatrix(atan2 (a.toADDM()) (b.toADDM()))
     // DV - D binary operations
-    static member (+) (a:DM, b:D) = DM(a.toADDM() + b.toADD())
-    static member (-) (a:DM, b:D) = DM(a.toADDM() - b.toADD())
-    static member (*) (a:DM, b:D) = DM(a.toADDM() * b.toADD())
-    static member (/) (a:DM, b:D) = DM(a.toADDM() / b.toADD())
-    static member Pow (a:DM, b:D) = DM(a.toADDM() ** b.toADD())
-    static member Atan2 (a:DM, b:D) = DM(ADDM.Atan2(a.toADDM(), b.toADD()))
+    static member (+) (a:DMatrix, b:DNumber) = DMatrix(a.toADDM() + b.toADD())
+    static member (-) (a:DMatrix, b:DNumber) = DMatrix(a.toADDM() - b.toADD())
+    static member (*) (a:DMatrix, b:DNumber) = DMatrix(a.toADDM() * b.toADD())
+    static member (/) (a:DMatrix, b:DNumber) = DMatrix(a.toADDM() / b.toADD())
+    static member Pow (a:DMatrix, b:DNumber) = DMatrix(a.toADDM() ** b.toADD())
+    static member Atan2 (a:DMatrix, b:DNumber) = DMatrix(ADDM.Atan2(a.toADDM(), b.toADD()))
     // D - DV binary operations
-    static member (+) (a:D, b:DM) = DM(a.toADD() + b.toADDM())
-    static member (-) (a:D, b:DM) = DM(a.toADD() - b.toADDM())
-    static member (*) (a:D, b:DM) = DM(a.toADD() * b.toADDM())
-    static member (/) (a:D, b:DM) = DM(a.toADD() / b.toADDM())
-    static member Pow (a:D, b:DM) = DM(ADDM.Pow(a.toADD(), b.toADDM()))
-    static member Atan2 (a:D, b:DM) = DM(ADDM.Atan2(a.toADD(), b.toADDM()))
+    static member (+) (a:DNumber, b:DMatrix) = DMatrix(a.toADD() + b.toADDM())
+    static member (-) (a:DNumber, b:DMatrix) = DMatrix(a.toADD() - b.toADDM())
+    static member (*) (a:DNumber, b:DMatrix) = DMatrix(a.toADD() * b.toADDM())
+    static member (/) (a:DNumber, b:DMatrix) = DMatrix(a.toADD() / b.toADDM())
+    static member Pow (a:DNumber, b:DMatrix) = DMatrix(ADDM.Pow(a.toADD(), b.toADDM()))
+    static member Atan2 (a:DNumber, b:DMatrix) = DMatrix(ADDM.Atan2(a.toADD(), b.toADDM()))
     // DV - float binary operations
-    static member (+) (a:DM, b:float) = a + (D b)
-    static member (-) (a:DM, b:float) = a - (D b)
-    static member (*) (a:DM, b:float) = a * (D b)
-    static member (/) (a:DM, b:float) = a / (D b)
-    static member Pow (a:DM, b:float) = a ** (D b)
-    static member Atan2 (a:DM, b:float) = DM.Atan2(a, D b)
+    static member (+) (a:DMatrix, b:float) = a + (DNumber b)
+    static member (-) (a:DMatrix, b:float) = a - (DNumber b)
+    static member (*) (a:DMatrix, b:float) = a * (DNumber b)
+    static member (/) (a:DMatrix, b:float) = a / (DNumber b)
+    static member Pow (a:DMatrix, b:float) = a ** (DNumber b)
+    static member Atan2 (a:DMatrix, b:float) = DMatrix.Atan2(a, DNumber b)
     // float - DV binary operations
-    static member (+) (a:float, b:DM) = (D a) + b
-    static member (-) (a:float, b:DM) = (D a) - b
-    static member (*) (a:float, b:DM) = (D a) * b
-    static member (/) (a:float, b:DM) = (D a) / b
-    static member Pow (a:float, b:DM) = DM.Pow(D a, b)
-    static member Atan2 (a:float, b:DM) = DM.Atan2(D a, b)
+    static member (+) (a:float, b:DMatrix) = (DNumber a) + b
+    static member (-) (a:float, b:DMatrix) = (DNumber a) - b
+    static member (*) (a:float, b:DMatrix) = (DNumber a) * b
+    static member (/) (a:float, b:DMatrix) = (DNumber a) / b
+    static member Pow (a:float, b:DMatrix) = DMatrix.Pow(DNumber a, b)
+    static member Atan2 (a:float, b:DMatrix) = DMatrix.Atan2(DNumber a, b)
     // DV - int binary operations
-    static member (+) (a:DM, b:int) = a + (D (float b))
-    static member (-) (a:DM, b:int) = a - (D (float b))
-    static member (*) (a:DM, b:int) = a * (D (float b))
-    static member (/) (a:DM, b:int) = a / (D (float b))
-    static member Pow (a:DM, b:int) = DM.Pow(a, (D (float b)))
-    static member Atan2 (a:DM, b:int) = DM.Atan2(a, (D (float b)))
+    static member (+) (a:DMatrix, b:int) = a + (DNumber (float b))
+    static member (-) (a:DMatrix, b:int) = a - (DNumber (float b))
+    static member (*) (a:DMatrix, b:int) = a * (DNumber (float b))
+    static member (/) (a:DMatrix, b:int) = a / (DNumber (float b))
+    static member Pow (a:DMatrix, b:int) = DMatrix.Pow(a, (DNumber (float b)))
+    static member Atan2 (a:DMatrix, b:int) = DMatrix.Atan2(a, (DNumber (float b)))
     // int - DV binary operations
-    static member (+) (a:int, b:DM) = (D (float a)) + b
-    static member (-) (a:int, b:DM) = (D (float a)) - b
-    static member (*) (a:int, b:DM) = (D (float a)) * b
-    static member (/) (a:int, b:DM) = (D (float a)) / b
-    static member Pow (a:int, b:DM) = DM.Pow((D (float a)), b)
-    static member Atan2 (a:int, b:DM) = DM.Atan2((D (float a)), b)
+    static member (+) (a:int, b:DMatrix) = (DNumber (float a)) + b
+    static member (-) (a:int, b:DMatrix) = (DNumber (float a)) - b
+    static member (*) (a:int, b:DMatrix) = (DNumber (float a)) * b
+    static member (/) (a:int, b:DMatrix) = (DNumber (float a)) / b
+    static member Pow (a:int, b:DMatrix) = DMatrix.Pow((DNumber (float a)), b)
+    static member Atan2 (a:int, b:DMatrix) = DMatrix.Atan2((DNumber (float a)), b)
     // DV unary operations
-    static member Log (a:DM) = DM(log (a.toADDM()))
-    static member Log10 (a:DM) = DM(log10 (a.toADDM()))
-    static member Exp (a:DM) = DM(exp (a.toADDM()))
-    static member Sin (a:DM) = DM(sin (a.toADDM()))
-    static member Cos (a:DM) = DM(cos (a.toADDM()))
-    static member Tan (a:DM) = DM(tan (a.toADDM()))
-    static member Neg (a:DM) = DM(-(a.toADDM()))
-    static member Sqrt (a:DM) = DM(sqrt (a.toADDM()))
-    static member Sinh (a:DM) = DM(sinh (a.toADDM()))
-    static member Cosh (a:DM) = DM(cosh (a.toADDM()))
-    static member Tanh (a:DM) = DM(tanh (a.toADDM()))
-    static member Asin (a:DM) = DM(asin (a.toADDM()))
-    static member Acos (a:DM) = DM(acos (a.toADDM()))
-    static member Atan (a:DM) = DM(atan (a.toADDM()))
-    static member Abs (a:DM) = DM(abs (a.toADDM()))
-    static member Floor (a:DM) = DM(floor (a.toADDM()))
-    static member Ceiling (a:DM) = DM(ceil (a.toADDM()))
-    static member Round (a:DM) = DM(round (a.toADDM()))
-    static member Sign (a:DM) = DM(ADDM.Sign(a.toADDM()))
-    static member Sum (a:DM) = D(ADDM.Sum(a.toADDM()))
-    static member Transpose (a:DM) = DM(ADDM.Transpose(a.toADDM()))
-    static member Diagonal (a:DM) = DV(ADDM.Diagonal(a.toADDM()))
-    static member Trace (a:DM) = D(ADDM.Trace(a.toADDM()))
-    static member Solve (a:DM, b:DV) = DV(ADDM.Solve(a.toADDM(), b.toADDV()))
-    static member SolveSymmetric (a:DM, b:DV) = DV(ADDM.SolveSymmetric(a.toADDM(), b.toADDV()))
-    static member Inverse (a:DM) = DM(ADDM.Inverse(a.toADDM()))
-    static member Det (a:DM) = D(ADDM.Det(a.toADDM()))
-    static member ReLU (a:DM) = DM(ADDM.ReLU(a.toADDM()))
-    static member Sigmoid (a:DM) = DM(ADDM.Sigmoid(a.toADDM()))
-    static member SoftPlus (a:DM) = DM(ADDM.SoftPlus(a.toADDM()))
-    static member SoftSign (a:DM) = DM(ADDM.SoftSign(a.toADDM()))
-    static member Max (a:DM, b:DM) = DM(ADDM.Max(a.toADDM(), b.toADDM()))
-    static member Min (a:DM, b:DM) = DM(ADDM.Min(a.toADDM(), b.toADDM()))
-    static member Max (a:DM, b:D) = DM(ADDM.Max(a.toADDM(), b.toADD()))
-    static member Max (a:D, b:DM) = DM(ADDM.Max(a.toADD(), b.toADDM()))
-    static member Min (a:DM, b:D) = DM(ADDM.Min(a.toADDM(), b.toADD()))
-    static member Min (a:D, b:DM) = DM(ADDM.Min(a.toADD(), b.toADDM()))
-    static member MaxIndex (a:DM) = ADDM.MaxIndex(a.toADDM())
-    static member MinIndex (a:DM) = ADDM.MinIndex(a.toADDM())
-    static member Mean (a:DM) = D(ADDM.Mean(a.toADDM()))
-    static member StandardDev (a:DM) = D(ADDM.StandardDev(a.toADDM()))
-    static member Variance (a:DM) = D(ADDM.Variance(a.toADDM()))
-    static member Normalize (a:DM) = DM(ADDM.Normalize(a.toADDM()))
-    static member Standardize (a:DM) = DM(ADDM.Standardize(a.toADDM()))
+    static member Log (a:DMatrix) = DMatrix(log (a.toADDM()))
+    static member Log10 (a:DMatrix) = DMatrix(log10 (a.toADDM()))
+    static member Exp (a:DMatrix) = DMatrix(exp (a.toADDM()))
+    static member Sin (a:DMatrix) = DMatrix(sin (a.toADDM()))
+    static member Cos (a:DMatrix) = DMatrix(cos (a.toADDM()))
+    static member Tan (a:DMatrix) = DMatrix(tan (a.toADDM()))
+    static member Neg (a:DMatrix) = DMatrix(-(a.toADDM()))
+    static member Sqrt (a:DMatrix) = DMatrix(sqrt (a.toADDM()))
+    static member Sinh (a:DMatrix) = DMatrix(sinh (a.toADDM()))
+    static member Cosh (a:DMatrix) = DMatrix(cosh (a.toADDM()))
+    static member Tanh (a:DMatrix) = DMatrix(tanh (a.toADDM()))
+    static member Asin (a:DMatrix) = DMatrix(asin (a.toADDM()))
+    static member Acos (a:DMatrix) = DMatrix(acos (a.toADDM()))
+    static member Atan (a:DMatrix) = DMatrix(atan (a.toADDM()))
+    static member Abs (a:DMatrix) = DMatrix(abs (a.toADDM()))
+    static member Floor (a:DMatrix) = DMatrix(floor (a.toADDM()))
+    static member Ceiling (a:DMatrix) = DMatrix(ceil (a.toADDM()))
+    static member Round (a:DMatrix) = DMatrix(round (a.toADDM()))
+    static member Sign (a:DMatrix) = DMatrix(ADDM.Sign(a.toADDM()))
+    static member Sum (a:DMatrix) = DNumber(ADDM.Sum(a.toADDM()))
+    static member Transpose (a:DMatrix) = DMatrix(ADDM.Transpose(a.toADDM()))
+    static member Diagonal (a:DMatrix) = DVector(ADDM.Diagonal(a.toADDM()))
+    static member Trace (a:DMatrix) = DNumber(ADDM.Trace(a.toADDM()))
+    static member Solve (a:DMatrix, b:DVector) = DVector(ADDM.Solve(a.toADDM(), b.toADDV()))
+    static member SolveSymmetric (a:DMatrix, b:DVector) = DVector(ADDM.SolveSymmetric(a.toADDM(), b.toADDV()))
+    static member Inverse (a:DMatrix) = DMatrix(ADDM.Inverse(a.toADDM()))
+    static member Det (a:DMatrix) = DNumber(ADDM.Det(a.toADDM()))
+    static member ReLU (a:DMatrix) = DMatrix(ADDM.ReLU(a.toADDM()))
+    static member Sigmoid (a:DMatrix) = DMatrix(ADDM.Sigmoid(a.toADDM()))
+    static member SoftPlus (a:DMatrix) = DMatrix(ADDM.SoftPlus(a.toADDM()))
+    static member SoftSign (a:DMatrix) = DMatrix(ADDM.SoftSign(a.toADDM()))
+    static member Max (a:DMatrix, b:DMatrix) = DMatrix(ADDM.Max(a.toADDM(), b.toADDM()))
+    static member Min (a:DMatrix, b:DMatrix) = DMatrix(ADDM.Min(a.toADDM(), b.toADDM()))
+    static member Max (a:DMatrix, b:DNumber) = DMatrix(ADDM.Max(a.toADDM(), b.toADD()))
+    static member Max (a:DNumber, b:DMatrix) = DMatrix(ADDM.Max(a.toADD(), b.toADDM()))
+    static member Min (a:DMatrix, b:DNumber) = DMatrix(ADDM.Min(a.toADDM(), b.toADD()))
+    static member Min (a:DNumber, b:DMatrix) = DMatrix(ADDM.Min(a.toADD(), b.toADDM()))
+    static member MaxIndex (a:DMatrix) = ADDM.MaxIndex(a.toADDM())
+    static member MinIndex (a:DMatrix) = ADDM.MinIndex(a.toADDM())
+    static member Mean (a:DMatrix) = DNumber(ADDM.Mean(a.toADDM()))
+    static member StandardDev (a:DMatrix) = DNumber(ADDM.StandardDev(a.toADDM()))
+    static member Variance (a:DMatrix) = DNumber(ADDM.Variance(a.toADDM()))
+    static member Normalize (a:DMatrix) = DMatrix(ADDM.Normalize(a.toADDM()))
+    static member Standardize (a:DMatrix) = DMatrix(ADDM.Standardize(a.toADDM()))
 
 /// Nested forward and reverse mode automatic differentiation module
 type AD =
     /// First derivative of a scalar-to-scalar function `f`
-    static member Diff(f:System.Func<D,D>) = System.Func<D,D>(D.DtoADD >> (DiffSharp.AD.Float64.DiffOps.diff (D.ADDtoD >> f.Invoke >> D.DtoADD)) >> D.ADDtoD)
+    static member Diff(f:System.Func<DNumber,DNumber>) = System.Func<DNumber,DNumber>(DNumber.DtoADD >> (DiffSharp.AD.Float64.DiffOps.diff (DNumber.ADDtoD >> f.Invoke >> DNumber.DtoADD)) >> DNumber.ADDtoD)
     /// First derivative of a scalar-to-scalar function `f`, at point `x`
-    static member Diff(f:System.Func<D,D>, x:D) = D.ADDtoD <| DiffSharp.AD.Float64.DiffOps.diff (D.ADDtoD >> f.Invoke >> D.DtoADD) (x |> D.DtoADD)
+    static member Diff(f:System.Func<DNumber,DNumber>, x:DNumber) = DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.diff (DNumber.ADDtoD >> f.Invoke >> DNumber.DtoADD) (x |> DNumber.DtoADD)
     /// Second derivative of a scalar-to-scalar function `f`
-    static member Diff2(f:System.Func<D,D>) = System.Func<D,D>(D.DtoADD >> (DiffSharp.AD.Float64.DiffOps.diff2 (D.ADDtoD >> f.Invoke >> D.DtoADD)) >> D.ADDtoD)
+    static member Diff2(f:System.Func<DNumber,DNumber>) = System.Func<DNumber,DNumber>(DNumber.DtoADD >> (DiffSharp.AD.Float64.DiffOps.diff2 (DNumber.ADDtoD >> f.Invoke >> DNumber.DtoADD)) >> DNumber.ADDtoD)
     /// Second derivative of a scalar-to-scalar function `f`, at point `x`
-    static member Diff2(f:System.Func<D,D>, x:D) = D.ADDtoD <| DiffSharp.AD.Float64.DiffOps.diff2 (D.ADDtoD >> f.Invoke >> D.DtoADD) (x |> D.DtoADD)
+    static member Diff2(f:System.Func<DNumber,DNumber>, x:DNumber) = DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.diff2 (DNumber.ADDtoD >> f.Invoke >> DNumber.DtoADD) (x |> DNumber.DtoADD)
     /// `n`-th derivative of a scalar-to-scalar function `f`
-    static member Diffn(n:int, f:System.Func<D,D>) = System.Func<D,D>(D.DtoADD >> (DiffSharp.AD.Float64.DiffOps.diffn n (D.ADDtoD >> f.Invoke >> D.DtoADD)) >> D.ADDtoD)
+    static member Diffn(n:int, f:System.Func<DNumber,DNumber>) = System.Func<DNumber,DNumber>(DNumber.DtoADD >> (DiffSharp.AD.Float64.DiffOps.diffn n (DNumber.ADDtoD >> f.Invoke >> DNumber.DtoADD)) >> DNumber.ADDtoD)
     /// `n`-th derivative of a scalar-to-scalar function `f`, at point `x`
-    static member Diffn(n:int, f:System.Func<D,D>, x:D) = D.ADDtoD <| DiffSharp.AD.Float64.DiffOps.diffn n (D.ADDtoD >> f.Invoke >> D.DtoADD) (x |> D.DtoADD)
+    static member Diffn(n:int, f:System.Func<DNumber,DNumber>, x:DNumber) = DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.diffn n (DNumber.ADDtoD >> f.Invoke >> DNumber.DtoADD) (x |> DNumber.DtoADD)
     /// Gradient-vector product (directional derivative) of a vector-to-scalar function `f`, at point `x`, along vector `v`
-    static member Gradv(f:System.Func<DV,D>, x:DV, v:DV) = D.ADDtoD <| DiffSharp.AD.Float64.DiffOps.gradv (DV.ADDVtoDV >> f.Invoke >> D.DtoADD) (x |> DV.DVtoADDV) (v |> DV.DVtoADDV)
+    static member Gradv(f:System.Func<DVector,DNumber>, x:DVector, v:DVector) = DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.gradv (DVector.ADDVtoDV >> f.Invoke >> DNumber.DtoADD) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
     /// Gradient of a vector-to-scalar function `f`
-    static member Grad(f:System.Func<DV,D>) = System.Func<DV,DV>(DV.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.grad (DV.ADDVtoDV >> f.Invoke >> D.DtoADD)) >> DV.ADDVtoDV)
+    static member Grad(f:System.Func<DVector,DNumber>) = System.Func<DVector,DVector>(DVector.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.grad (DVector.ADDVtoDV >> f.Invoke >> DNumber.DtoADD)) >> DVector.ADDVtoDV)
     /// Gradient of a vector-to-scalar function `f`, at point `x`
-    static member Grad(f:System.Func<DV,D>, x:DV) = DV.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.grad ((DV.ADDVtoDV) >> f.Invoke >> D.DtoADD) (x |> DV.DVtoADDV)
+    static member Grad(f:System.Func<DVector,DNumber>, x:DVector) = DVector.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.grad ((DVector.ADDVtoDV) >> f.Invoke >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
     /// Laplacian of a vector-to-scalar function `f`
-    static member Laplacian(f:System.Func<DV,D>) = System.Func<DV,D>(DV.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.laplacian (DV.ADDVtoDV >> f.Invoke >> D.DtoADD)) >> D.ADDtoD)
+    static member Laplacian(f:System.Func<DVector,DNumber>) = System.Func<DVector,DNumber>(DVector.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.laplacian (DVector.ADDVtoDV >> f.Invoke >> DNumber.DtoADD)) >> DNumber.ADDtoD)
     /// Laplacian of a vector-to-scalar function `f`, at point `x`
-    static member Laplacian(f:System.Func<DV,D>, x:DV) = D.ADDtoD <| DiffSharp.AD.Float64.DiffOps.laplacian (DV.ADDVtoDV >> f.Invoke >> D.DtoADD) (x |> DV.DVtoADDV)
+    static member Laplacian(f:System.Func<DVector,DNumber>, x:DVector) = DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.laplacian (DVector.ADDVtoDV >> f.Invoke >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
     /// Jacobian-vector product of a vector-to-vector function `f`, at point `x`, along vector `v`
-    static member Jacobianv(f:System.Func<DV,DV>, x:DV, v:DV) = DV.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.jacobianv (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV) (x |> DV.DVtoADDV) (v |> DV.DVtoADDV)
+    static member Jacobianv(f:System.Func<DVector,DVector>, x:DVector, v:DVector) = DVector.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.jacobianv (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
     /// Transposed Jacobian-vector product of a vector-to-vector function `f`, at point `x`, along vector `v`
-    static member JacobianTv(f:System.Func<DV,DV>, x:DV, v:DV) = DV.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.jacobianTv (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV) (x |> DV.DVtoADDV) (v |> DV.DVtoADDV)
+    static member JacobianTv(f:System.Func<DVector,DVector>, x:DVector, v:DVector) = DVector.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.jacobianTv (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
     /// Jacobian of a vector-to-vector function `f`
-    static member Jacobian(f:System.Func<DV,DV>) = System.Func<DV,DM>(DV.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.jacobian (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV)) >> DM.ADDMtoDM)
+    static member Jacobian(f:System.Func<DVector,DVector>) = System.Func<DVector,DMatrix>(DVector.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.jacobian (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV)) >> DMatrix.ADDMtoDM)
     /// Jacobian of a vector-to-vector function `f`, at point `x`
-    static member Jacobian(f:System.Func<DV,DV>, x:DV) = DM.ADDMtoDM <| DiffSharp.AD.Float64.DiffOps.jacobian (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV) (x |> DV.DVtoADDV)
+    static member Jacobian(f:System.Func<DVector,DVector>, x:DVector) = DMatrix.ADDMtoDM <| DiffSharp.AD.Float64.DiffOps.jacobian (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
     /// Transposed Jacobian of a vector-to-vector function `f`
-    static member JacobianT(f:System.Func<DV,DV>) = System.Func<DV,DM>(DV.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.jacobianT (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV)) >> DM.ADDMtoDM)
+    static member JacobianT(f:System.Func<DVector,DVector>) = System.Func<DVector,DMatrix>(DVector.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.jacobianT (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV)) >> DMatrix.ADDMtoDM)
     /// Transposed Jacobian of a vector-to-vector function `f`, at point `x`
-    static member JacobianT(f:System.Func<DV,DV>, x:DV) = DM.ADDMtoDM <| DiffSharp.AD.Float64.DiffOps.jacobianT (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV) (x |> DV.DVtoADDV)
+    static member JacobianT(f:System.Func<DVector,DVector>, x:DVector) = DMatrix.ADDMtoDM <| DiffSharp.AD.Float64.DiffOps.jacobianT (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
     /// Hessian of a vector-to-scalar function `f`
-    static member Hessian(f:System.Func<DV,D>) = System.Func<DV,DM>(DV.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.hessian (DV.ADDVtoDV >> f.Invoke >> D.DtoADD)) >> DM.ADDMtoDM)
+    static member Hessian(f:System.Func<DVector,DNumber>) = System.Func<DVector,DMatrix>(DVector.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.hessian (DVector.ADDVtoDV >> f.Invoke >> DNumber.DtoADD)) >> DMatrix.ADDMtoDM)
     /// Hessian of a vector-to-scalar function `f`, at point `x`
-    static member Hessian(f:System.Func<DV,D>, x:DV) = DM.ADDMtoDM <| DiffSharp.AD.Float64.DiffOps.hessian (DV.ADDVtoDV >> f.Invoke >> D.DtoADD) (x |> DV.DVtoADDV)
+    static member Hessian(f:System.Func<DVector,DNumber>, x:DVector) = DMatrix.ADDMtoDM <| DiffSharp.AD.Float64.DiffOps.hessian (DVector.ADDVtoDV >> f.Invoke >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
     /// Hessian-vector product of a vector-to-scalar function `f`, at point `x`
-    static member Hessianv(f:System.Func<DV,D>, x:DV, v:DV) = DV.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.hessianv (DV.ADDVtoDV >> f.Invoke >> D.DtoADD) (x |> DV.DVtoADDV) (v |> DV.DVtoADDV)
+    static member Hessianv(f:System.Func<DVector,DNumber>, x:DVector, v:DVector) = DVector.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.hessianv (DVector.ADDVtoDV >> f.Invoke >> DNumber.DtoADD) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
     /// Curl of a vector-to-vector function `f`. Supported only for functions with a three-by-three Jacobian matrix.
-    static member Curl(f:System.Func<DV,DV>) = System.Func<DV,DV>(DV.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.curl (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV)) >> DV.ADDVtoDV)
+    static member Curl(f:System.Func<DVector,DVector>) = System.Func<DVector,DVector>(DVector.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.curl (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV)) >> DVector.ADDVtoDV)
     /// Curl of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix.
-    static member Curl(f:System.Func<DV,DV>, x:DV) = DV.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.curl (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV) (x |> DV.DVtoADDV)
+    static member Curl(f:System.Func<DVector,DVector>, x:DVector) = DVector.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.curl (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
     /// Divergence of a vector-to-vector function `f`. Defined only for functions with a square Jacobian matrix.
-    static member Div(f:System.Func<DV,DV>) = System.Func<DV,D>(DV.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.div (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV)) >> D.ADDtoD)
+    static member Div(f:System.Func<DVector,DVector>) = System.Func<DVector,DNumber>(DVector.DVtoADDV >> (DiffSharp.AD.Float64.DiffOps.div (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV)) >> DNumber.ADDtoD)
     /// Divergence of a vector-to-vector function `f`, at point `x`. Defined only for functions with a square Jacobian matrix.
-    static member Div(f:System.Func<DV,DV>, x:DV) = D.ADDtoD <| DiffSharp.AD.Float64.DiffOps.div (DV.ADDVtoDV >> f.Invoke >> DV.DVtoADDV) (x |> DV.DVtoADDV)
+    static member Div(f:System.Func<DVector,DVector>, x:DVector) = DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.div (DVector.ADDVtoDV >> f.Invoke >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
     /// Returns a specified number raised to the specified power.
     static member inline Pow(a:'T, b:'U) = a ** b
     /// Returns the angle whose tangent is the quotient of two specified numbers.
@@ -474,22 +474,22 @@ type AD =
     static member inline Max(a:'T, b:'U):^V = ((^T or ^U) : (static member Max : ^T * ^U -> ^V) a, b)
     static member inline Min(a:'T, b:'U):^V = ((^T or ^U) : (static member Min : ^T * ^U -> ^V) a, b)
     static member inline Signum(a:'T) = (^T : (static member Sign : ^T -> ^T) a)
-    static member inline Mean(a:'T) = (^T : (static member Mean : ^T -> D) a)
-    static member inline StandardDev(a:'T) = (^T : (static member StandardDev : ^T -> D) a)
-    static member inline Variance(a:'T) = (^T : (static member Variance : ^T -> D) a)
+    static member inline Mean(a:'T) = (^T : (static member Mean : ^T -> DNumber) a)
+    static member inline StandardDev(a:'T) = (^T : (static member StandardDev : ^T -> DNumber) a)
+    static member inline Variance(a:'T) = (^T : (static member Variance : ^T -> DNumber) a)
     static member inline Normalize(a:'T) = (^T : (static member Normalize : ^T -> ^T) a)
     static member inline Standardize(a:'T) = (^T : (static member Standardize : ^T -> ^T) a)
-    static member L1Norm(a:DV) = D(ADDV.L1Norm(a.toADDV()))
-    static member L2Norm(a:DV) = D(ADDV.L2Norm(a.toADDV()))
-    static member L2NormSq(a:DV) = D(ADDV.L2NormSq(a.toADDV()))
-    static member Sum(a:DV) = D(ADDV.Sum(a.toADDV()))
-    static member Sum(a:DM) = D(ADDM.Sum(a.toADDM()))
-    static member Transpose (a:DM) = DM(ADDM.Transpose(a.toADDM()))
-    static member Diagonal (a:DM) = DV(ADDM.Diagonal(a.toADDM()))
-    static member Trace (a:DM) = D(ADDM.Trace(a.toADDM()))
-    static member Solve (a:DM, b:DV) = DV(ADDM.Solve(a.toADDM(), b.toADDV()))
-    static member SolveSymmetric (a:DM, b:DV) = DV(ADDM.SolveSymmetric(a.toADDM(), b.toADDV()))
-    static member Inverse (a:DM) = DM(ADDM.Inverse(a.toADDM()))
+    static member L1Norm(a:DVector) = DNumber(ADDV.L1Norm(a.toADDV()))
+    static member L2Norm(a:DVector) = DNumber(ADDV.L2Norm(a.toADDV()))
+    static member L2NormSq(a:DVector) = DNumber(ADDV.L2NormSq(a.toADDV()))
+    static member Sum(a:DVector) = DNumber(ADDV.Sum(a.toADDV()))
+    static member Sum(a:DMatrix) = DNumber(ADDM.Sum(a.toADDM()))
+    static member Transpose (a:DMatrix) = DMatrix(ADDM.Transpose(a.toADDM()))
+    static member Diagonal (a:DMatrix) = DVector(ADDM.Diagonal(a.toADDM()))
+    static member Trace (a:DMatrix) = DNumber(ADDM.Trace(a.toADDM()))
+    static member Solve (a:DMatrix, b:DVector) = DVector(ADDM.Solve(a.toADDM(), b.toADDV()))
+    static member SolveSymmetric (a:DMatrix, b:DVector) = DVector(ADDM.SolveSymmetric(a.toADDM(), b.toADDV()))
+    static member Inverse (a:DMatrix) = DMatrix(ADDM.Inverse(a.toADDM()))
 
 
 /// Numerical differentiation module
