@@ -55,6 +55,7 @@ let [<Literal>] internal number1      = 1.f
 let [<Literal>] internal number2      = 2.f
 
 type number = float32
+type IDataBuffer = IDataBuffer<number>
 
 let inline Backend               a = global.DiffSharp.Config.GlobalConfig.BackendProvider.GetBackend(a).BackendHandle
 let inline VisualizationContrast () = global.DiffSharp.Config.GlobalConfig.Float32VisualizationContrast
@@ -473,7 +474,7 @@ type DNumber =
 
 /// Vector numeric type keeping dual numbers for forward mode and adjoints and tapes for reverse mode AD, with nesting capability, using tags to avoid perturbation confusion
 and DVector =
-    | DV of number[] // Primal
+    | DV of IDataBuffer // Primal
     | DVF of DVector * DVector * uint32 // Primal, tangent, tag
     | DVR of DVector * (DVector ref) * TraceOp * (uint32 ref) * uint32 // Primal, adjoint, parent operation, fan-out counter, tag
 
@@ -525,7 +526,7 @@ and DVector =
     member d.GetReverse(i:uint32) = DVR(d, ref (DVector.ZeroN d.Length), Noop, ref 0u, i)
     member d.Copy() =
         match d with
-        | DV(ap) -> DV(Array.copy ap)
+        | DV(ap) -> DV(ap.DeepCopy)
         | DVF(ap,at,ai) -> DVF(ap.Copy(), at.Copy(), ai)
         | DVR(ap,aa,at,af,ai) -> DVR(ap.Copy(), ref ((!aa).Copy()), at, ref (!af), ai)
     member d.Length =
@@ -536,7 +537,7 @@ and DVector =
     member d.Item
         with get i =
             match d with
-            | DV(ap) -> D(ap.[i])
+            | DV(ap) -> D(ap.SubData.[i])
             | DVF(ap,at,ai) -> DF(ap.[i], at.[i], ai)
             | DVR(ap,_,_,_,ai) -> DR(ap.[i], ref (D number0), Item_DV(d, i), ref 0u, ai)
 
@@ -544,20 +545,20 @@ and DVector =
         let l = defaultArg lower 0
         let u = defaultArg upper (d.Length - 1)
         match d with
-        | DV(ap) -> DV(ap.[l..u])
+        | DV(ap) -> DV(ap.GetValues l (u - l + 1))
         | DVF(ap,at,ai) -> DVF(ap.[l..u], at.[l..u], ai)
         | DVR(ap,_,_,_,ai) -> let cp = ap.[l..u] in DVR(cp, ref (DVector.ZeroN cp.Length), Slice_DV(d, l), ref 0u, ai)
 
     member d.ToArray() =
         match d with
-        | DV(ap) -> ap |> Array.map D
+        | DV(ap) -> ap.SubData |> Array.map D
         | DVF(ap,at,ai) ->
             Array.init ap.Length (fun i -> DF(ap.[i], at.[i], ai))
         | DVR(ap,_,_,_,ai) ->
             Array.init ap.Length (fun i -> DR(ap.[i], ref (D number0), Item_DV(d, i), ref 0u, ai))
     member d.ToRowDM() =
         match d with
-        | DV(ap) -> seq [ap] |> array2D |> DM
+        | DV(ap) -> seq [ap.SubData] |> array2D |> DM
         | DVF(ap,at,ai) -> DMF(ap.ToRowDM(), at.ToRowDM(), ai)
         | DVR(ap,_,_,_,ai) -> let cp = ap.ToRowDM() in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), RowMatrix_DV(d), ref 0u, ai)
     member d.ToColDM() = DMatrix.Transpose(d.ToRowDM())
@@ -590,20 +591,21 @@ and DVector =
             if i < d.Length - 1 then sb.Append(" ") |> ignore
         sb.Append("]") |> ignore
         sb.ToString()
-    static member Zero = DV Array.empty
-    static member ZeroN n = DV(Array.zeroCreate n)
+    static member Zero = DV(new DataBuffer<number>(Array.empty))
+    static member ZeroN n = DV(new DataBuffer<number>((Array.zeroCreate n)))
     static member op_Explicit(d:DVector):number[] =
         let rec prec x =
             match x with
             | DV(p) -> p
             | DVF(xp,_,_) -> prec xp
             | DVR(xp,_,_,_,_) -> prec xp
-        prec d
+        let data = (prec d)
+        data.SubData
     static member op_Explicit(d) = DV(d)
     static member OfArray (a:DNumber[]) =
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
         match a.[0] with
-        | D(_) -> DV(a |> Array.map toNumber)
+        | D(_) -> DV(new DataBuffer<number>(a |> Array.map toNumber))
         | DF(_,_,ai) ->
             let ap = a |> Array.map (fun x -> x.P)
             let at = a |> Array.map (fun x -> x.T)
@@ -615,7 +617,7 @@ and DVector =
         match d with
         | DV(ap) ->
             seq {let i = ref 0; 
-                 for j in n do yield Array.sub ap !i j |> DV; i := !i + j}
+                 for j in n do yield DV(new DataBuffer<number>(Array.sub ap.SubData !i j)); i := !i + j}
         | DVF(ap,at,ai) ->
             let aps = DVector.Split(ap, n)
             let ats = DVector.Split(at, n)
@@ -625,22 +627,21 @@ and DVector =
             let ii = n |> Seq.mapFold (fun s i -> s, s + i) 0 |> fst |> Array.ofSeq
             Seq.mapi (fun i p -> DVR(p, ref (DVector.ZeroN p.Length), Split_DV(d, ii.[i]), ref 0u, ai)) aps
 
-
     static member inline Op_DV_DV (a, ff, fd, df, r) =
         match a with
-        | DV(ap)                      -> DV(ff(ap))
+        | DV(ap)                      -> DV(DataBuffer<number>(ff(ap.SubData)))
         | DVF(ap, at, ai)             -> let cp = fd(ap) in DVF(cp, df(cp, ap, at), ai)
         | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DVR(cp, ref (DVector.ZeroN cp.Length), r(a), ref 0u, ai)
 
     static member inline Op_DV_DM (a, ff, fd, df, r) =
         match a with
-        | DV(ap)                      -> DM(ff(ap))
+        | DV(ap)                      -> DM(ff(ap.SubData))
         | DVF(ap, at, ai)             -> let cp = fd(ap) in DMF(cp, df(cp, ap, at), ai)
         | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r(a), ref 0u, ai)
 
     static member inline Op_DV_D (a, ff, fd, df, r) =
         match a with
-        | DV(ap)                      -> D(ff(ap))
+        | DV(ap)                      -> D(ff(ap.SubData))
         | DVF(ap, at, ai)             -> let cp = fd(ap) in DF(cp, df(cp, ap, at), ai)
         | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DR(cp, ref (D number0), r(a), ref 0u, ai)
 
@@ -648,7 +649,7 @@ and DVector =
         match a with
         | DV(ap) ->
             match b with
-            | DV(bp)                  -> DV(ff(ap, bp))
+            | DV(bp)                  -> DV(DataBuffer<number>(ff(ap.SubData, bp.SubData)))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -682,7 +683,7 @@ and DVector =
         match a with
         | DV(ap) ->
             match b with
-            | DV(bp)                  -> DM(ff(ap, bp))
+            | DV(bp)                  -> DM(ff(ap.SubData, bp.SubData))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -716,7 +717,7 @@ and DVector =
         match a with
         | DV(ap) ->
             match b with
-            | DV(bp)                  -> D(ff(ap, bp))
+            | DV(bp)                  -> D(ff(ap.SubData, bp.SubData))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> DR(fd(a, bp), ref (D number0), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -750,7 +751,7 @@ and DVector =
         match a with
         | DV(ap) ->
             match b with
-            | D(bp)                   -> DV(ff(ap, bp))
+            | D(bp)                   -> DV(DataBuffer<number>(ff(ap.SubData, bp)))
             | DF(bp, bt, bi)          -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DR(bp,  _,  _,  _, bi)  -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -785,7 +786,7 @@ and DVector =
         match a with
         | D(ap) ->
             match b with
-            | DV(bp)                  -> DV(ff(ap, bp))
+            | DV(bp)                  -> DV(DataBuffer<number>(ff(ap, bp.SubData)))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DF(ap, at, ai) ->
@@ -1493,14 +1494,14 @@ and DMatrix =
         let colStart = defaultArg colStart 0
         let colFinish = defaultArg colFinish (d.Cols - 1)
         match d with
-        | DM(ap) -> DV(ap.[row, colStart..colFinish])
+        | DM(ap) -> DV(DataBuffer<number>(ap.[row, colStart..colFinish]))
         | DMF(ap,at,ai) -> DVF(ap.[row, colStart..colFinish], at.[row, colStart..colFinish], ai)
         | DMR(ap,_,_,_,ai) -> let cp = ap.[row, colStart..colFinish] in DVR(cp, ref (DVector.ZeroN cp.Length), SliceRow_DM(d, row, colStart), ref 0u, ai)
     member d.GetSlice(rowStart, rowFinish, col) =
         let rowStart = defaultArg rowStart 0
         let rowFinish = defaultArg rowFinish (d.Rows - 1)
         match d with
-        | DM(ap) -> DV(ap.[rowStart..rowFinish, col])
+        | DM(ap) -> DV(DataBuffer<number>(ap.[rowStart..rowFinish, col]))
         | DMF(ap,at,ai) -> DVF(ap.[rowStart..rowFinish, col], at.[rowStart..rowFinish, col], ai)
         | DMR(ap,_,_,_,ai) -> let cp = ap.[rowStart..rowFinish, col] in DVR(cp, ref (DVector.ZeroN cp.Length), SliceCol_DM(d, rowStart, col), ref 0u, ai)
 
@@ -1585,14 +1586,14 @@ and DMatrix =
 
     static member OfRows (m:int, a:DVector) =
         match a with
-        | DV(ap) -> DM(Backend(a).RepeatReshapeCopy_V_MRows(m, ap))
+        | DV(ap) -> DM(Backend(a).RepeatReshapeCopy_V_MRows(m, ap.SubData))
         | DVF(ap,at,ai) -> DMF(DMatrix.OfRows(m, ap), DMatrix.OfRows(m, at), ai)
         | DVR(ap,_,_,_,ai) ->
             let cp = DMatrix.OfRows(m, ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), Make_DMRows_ofDV(a), ref 0u, ai)
 
     static member OfCols (n:int, a:DVector) =
         match a with
-        | DV(ap) -> DM(Backend(a).RepeatReshapeCopy_V_MCols(n, ap))
+        | DV(ap) -> DM(Backend(a).RepeatReshapeCopy_V_MCols(n, ap.SubData))
         | DVF(ap,at,ai) -> DMF(DMatrix.OfCols(n, ap), DMatrix.OfCols(n, at), ai)
         | DVR(ap,_,_,_,ai) ->
             let cp = DMatrix.OfCols(n, ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), Make_DMCols_ofDV(a), ref 0u, ai)
@@ -1605,7 +1606,7 @@ and DMatrix =
 
     static member inline Op_DM_DV (a, ff, fd, df, r) =
         match a with
-        | DM(ap)                      -> DV(ff(ap))
+        | DM(ap)                      -> DV(DataBuffer<number>(ff(ap)))
         | DMF(ap, at, ai)             -> let cp = fd(ap) in DVF(cp, df(cp, ap, at), ai)
         | DMR(ap,_,_,_,ai)            -> let cp = fd(ap) in DVR(cp, ref (DVector.ZeroN cp.Length), r(a), ref 0u, ai)
 
@@ -1721,7 +1722,7 @@ and DMatrix =
         match a with
         | DM(ap) ->
             match b with
-            | DV(bp)                  -> DV(ff(ap, bp))
+            | DV(bp)                  -> DV(DataBuffer<number>(ff(ap, bp.SubData)))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
@@ -1755,7 +1756,7 @@ and DMatrix =
         match a with
         | DV(ap) ->
             match b with
-            | DM(bp)                  -> DV(ff(ap, bp))
+            | DM(bp)                  -> DV(DataBuffer<number>(ff(ap.SubData, bp)))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -1789,7 +1790,7 @@ and DMatrix =
         match a with
         | DM(ap) ->
             match b with
-            | DV(bp)                  -> DM(ff(ap, bp))
+            | DV(bp)                  -> DM(ff(ap, bp.SubData))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
@@ -1823,7 +1824,7 @@ and DMatrix =
         match a with
         | DV(ap) ->
             match b with
-            | DM(bp)                  -> DM(ff(ap, bp))
+            | DM(bp)                  -> DM(ff(ap.SubData, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
             | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -2754,8 +2755,8 @@ module DV =
     let inline create n (v:'a) = 
         let at = typeof<'a>
         if at.Equals(typeof<DNumber>) then DVector.OfArray(Array.create n (unbox<DNumber>(box v)))
-        elif at.Equals(typeof<number>) then DV (Array.create n (unbox<number>(box v)))
-        elif at.Equals(typeof<int>) then DV (Array.create n (unbox<int>(box v) |> toNumber))
+        elif at.Equals(typeof<number>) then DV (new DataBuffer<number>(Array.create n (unbox<number>(box v))))
+        elif at.Equals(typeof<int>) then DV (new DataBuffer<number>(Array.create n (unbox<int>(box v) |> toNumber)))
         else fail_with_invalid_type_message ()
     /// Creates a vector with `n` zero elements
     let inline zeroCreate n = DVector.ZeroN n
@@ -2765,8 +2766,8 @@ module DV =
     let inline init n (f:int->'a) = 
         let at = typeof<'a>
         if at.Equals(typeof<DNumber>) then DVector.OfArray(Array.init n (unbox<int->DNumber>(box f)))
-        elif at.Equals(typeof<number>) then DV (Array.init n (unbox<int->number>(box f)))
-        elif at.Equals(typeof<int>) then DV ((Array.init n (unbox<int->int>(box f))) |> Array.map toNumber)
+        elif at.Equals(typeof<number>) then DV (new DataBuffer<number>(Array.init n (unbox<int->number>(box f))))
+        elif at.Equals(typeof<int>) then DV (new DataBuffer<number>((Array.init n (unbox<int->int>(box f))) |> Array.map toNumber))
         else fail_with_invalid_type_message ()
     /// Returns true if vector `v` is empty, otherwise returns false
     let isEmpty (v:DVector) = v.Length = 0
@@ -2824,9 +2825,9 @@ module DV =
     /// Sums the elements of vector `v`
     let inline sum (v:DVector) = DVector.Sum(v)
     /// Creates a vector with `n` elements where the `i`-th element is one and the rest of the elements are zero
-    let inline standardBasis (n:int) (i:int) = DV(standardBasis n i)
+    let inline standardBasis (n:int) (i:int) = DV(DataBuffer<number>(standardBasis n i))
     /// Creates a vector with `n` elements where the `i`-th element has value `v` and the rest of the elements are zero
-    let inline standardBasisVal (n:int) (i:int) (v:number) = DV(standardBasisVal n i v)
+    let inline standardBasisVal (n:int) (i:int) (v:number) = DV(DataBuffer<number>(standardBasisVal n i v))
     /// Gets the unit vector codirectional with vector `v`
     let inline unitDV (v:DVector) = v / DVector.L2Norm(v)
     /// Converts matrix `m` into a vector by stacking its rows
@@ -3006,7 +3007,7 @@ module DOps =
         | :? seq<DNumber> as v ->
             v |> Seq.toArray |> DV.ofArray
         | _ ->
-            v |> Seq.toArray |> Array.map toNumber |> DV
+            DV(DataBuffer<number>(v |> Seq.toArray |> Array.map toNumber))
     /// Create a matrix form sequence of sequences `m`
     let inline toDM (m:seq<seq<_>>) = 
         match m with

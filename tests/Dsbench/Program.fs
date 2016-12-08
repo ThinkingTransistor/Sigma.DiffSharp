@@ -39,6 +39,7 @@
 
 open System.Diagnostics
 open DiffSharp.AD.Float64
+open DiffSharp.Util
 
 //let duration n f =
 //    let before = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime.Ticks
@@ -234,15 +235,14 @@ let main argv =
                 v <- 4. * v * (1. - v)
             v
 
-
         let xv = Array.init ops.vectorSize (fun _ -> rnd.NextDouble())
-        let xvD = DV xv
+        let xvD = DV(DataBuffer<float>(xv))
 
         let vv = Array.init ops.vectorSize (fun _ -> rnd.NextDouble())
-        let vvD = DV vv
+        let vvD = DV(DataBuffer<float>(vv))
 
         let zv = Array.init 3 (fun _ -> rnd.NextDouble())
-        let zvD = DV zv
+        let zvD = DV(DataBuffer<float>(zv))
 
         let fvs (x:float[]) =
             x |> Array.sumBy (fun v -> v * log (v / 2.))

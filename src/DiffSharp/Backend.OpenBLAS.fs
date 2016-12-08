@@ -645,7 +645,6 @@ module OpenBLAS =
             else
                 None
 
-
     type Float32Backend() =
         interface Backend<float32> with
             // BLAS

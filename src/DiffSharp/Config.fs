@@ -51,7 +51,7 @@ type BackendConfig<'T> =
       VisualisationContrast : 'T }
 
 /// A backend provier which selects a backend based on the given object (D, DV, DM; for dynamic/multithreaded backends)
-type BackendProvider =
+type IBackendProvider =
     abstract member GetBackend<'T> : obj -> BackendConfig<'T> 
 
 /// Record type holding configuration parameters
@@ -83,7 +83,7 @@ type GlobalConfig() =
                                     VisualisationContrast = 1.2}
          GrayscalePalette = GrayscalePaletteASCII}
 
-    static member BackendProvider : BackendProvider = DefaultBackendProvider() :> BackendProvider
+    static member BackendProvider : IBackendProvider = DefaultBackendProvider() :> IBackendProvider
     static member Float32BackendConfig = C.BackendConfigFloat32
     static member Float64BackendConfig = C.BackendConfigFloat64
     static member Float32Backend = C.BackendConfigFloat32.BackendHandle
@@ -113,7 +113,7 @@ and DefaultBackendProvider() =
     static let float32type = typeof<float32>
     static let float64type = typeof<float>
     
-    interface BackendProvider with
+    interface IBackendProvider with
         member b.GetBackend<'T> value =
            match typeof<'T> with
            | x when x = float32type -> (GlobalConfig.Float64BackendConfig :> obj) :?> BackendConfig<'T>

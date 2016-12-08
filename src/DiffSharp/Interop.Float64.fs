@@ -137,7 +137,7 @@ and DNumber(x:ADD) =
 and internal ADDV = DiffSharp.AD.Float64.DVector
 
 and DVector(v:ADDV) =
-    new(v:float[]) = DVector(ADDV.DV(v))
+    new(v:float[]) = DVector(ADDV.DV(DataBuffer<float>(v)))
     new(v:DNumber[]) = DVector(DiffSharp.AD.Float64.DOps.toDV(v |> Array.map DNumber.DtoADD))
     member internal this.toADDV() = v
     static member internal ADDVtoDV (v:ADDV) = new DVector(v)

@@ -1,4 +1,5 @@
-﻿using DiffSharp.AD;
+﻿using System;
+using DiffSharp.AD;
 using static DiffSharp.Interop.Float64.AD;
 using DiffSharp.Interop.Float64;
 
@@ -26,6 +27,9 @@ namespace InteropTest
 			DNumber db = dF(2.3);
 			DNumber dc = dF(1.4);
 
+			Console.WriteLine(db);
+			Console.WriteLine(dc);
+
 			// Construction anDNumbercasting of DNumber(scalar) values
 			// Construct new D
 			DNumber a = new DNumber(4.1);
@@ -43,6 +47,8 @@ namespace InteropTest
 			// Cast DVector to double[]
 			double[] vc = vb;
 
+			Console.Write(va);
+
 			// Construction anDNumbercasting of DMatrix (matrix) values
 			// Construct new DMatrix
 			DMatrix ma = new DMatrix(new double[,] { { 1, 2 }, { 3, 4 } });
@@ -50,7 +56,9 @@ namespace InteropTest
 			double[,] maa = new double[,] { { 1, 2 }, { 3, 4 } };
 			DMatrix mb = maa;
 			// Cast DMatrix to double[,]
-			double[,] mc = mb;			
+			double[,] mc = mb;
+
+			Console.ReadKey();
 		}
 	}
 

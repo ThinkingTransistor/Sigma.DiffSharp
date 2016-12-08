@@ -134,6 +134,39 @@ module ErrorMessages =
     let InvalidArgVMRows() = invalidArg "" "Length of vector must match number of rows of matrix."
     let InvalidArgVMCols() = invalidArg "" "Length of vector must match number of columns of matrix."
     
+[<AbstractClass>]
+type IDataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
+    abstract member Length : int32 with get
+    abstract member Offset : int32 with get
+    abstract member Data : 'T[] with get
+    abstract member SubData : 'T[] with get
+
+    new(data : 'T[]) = IDataBuffer(data, 0, data.Length)
+
+    abstract member GetValues : int32 -> int32 -> IDataBuffer<'T>
+    abstract member DeepCopy : IDataBuffer<'T>
+
+type DataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
+    inherit IDataBuffer<'T>(data, length, offset)
+    let mutable _length = length
+    let mutable _offset = offset
+    let mutable _data = data
+
+    new(data : 'T[]) = DataBuffer<'T>(data, 0, data.Length)
+
+    override d.Length with get() = _length 
+    override d.Offset with get() = _offset
+    override d.Data with get() = _data
+    override d.SubData with get() = _data.[_offset..(_offset + _length - 1)]
+
+    override d.GetValues startIndex length =
+        DataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
+
+    override d.DeepCopy =
+        DataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
+
+    override d.ToString() =
+        sprintf "DataBuffer %A" d.SubData
 
 /// Tagger for generating incremental integers
 type Tagger =
