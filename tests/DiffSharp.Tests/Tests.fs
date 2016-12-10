@@ -56,14 +56,6 @@ type Util() =
         match a |> Array.map Util.IsNice |> Array.tryFind not with
         | Some(_) -> false
         | _ -> true
-    static member IsNice(a:float32[,]) = 
-        match a |> Array2D.map Util.IsNice |> Array2D.tryFind not with
-        | Some(_) -> false
-        | _ -> true
-    static member IsNice(a:float[,]) = 
-        match a |> Array2D.map Util.IsNice |> Array2D.tryFind not with
-        | Some(_) -> false
-        | _ -> true
 
     static member (=~) (a:float32, b:float32) =
         if   System.Single.IsNaN(a) then
@@ -108,25 +100,5 @@ type Util() =
             false
         else
             match Array.map2 (fun (x:float) (y:float) -> (Util.(=~)(x, y))) a b |> Array.tryFind not with
-            | Some(_) -> false
-            | _ -> true
-
-    static member (=~) (a:float32[,], b:float32[,]) =
-        if (a.Length = 0) && (b.Length = 0) then
-            true
-        elif ((Array2D.length1 a) <> (Array2D.length1 b)) || ((Array2D.length2 a) <> (Array2D.length2 b))then
-            false
-        else
-            match Array2D.map2 (fun (x:float32) (y:float32) -> (Util.(=~)(x, y))) a b |> Array2D.tryFind not with
-            | Some(_) -> false
-            | _ -> true
-
-    static member (=~) (a:float[,], b:float[,]) =
-        if (a.Length = 0) && (b.Length = 0) then
-            true
-        elif ((Array2D.length1 a) <> (Array2D.length1 b)) || ((Array2D.length2 a) <> (Array2D.length2 b))then
-            false
-        else
-            match Array2D.map2 (fun (x:float) (y:float) -> (Util.(=~)(x, y))) a b |> Array2D.tryFind not with
             | Some(_) -> false
             | _ -> true

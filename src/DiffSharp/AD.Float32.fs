@@ -62,7 +62,7 @@ let inline VisualizationContrast () = global.DiffSharp.Config.GlobalConfig.Float
 let inline FixedPointEpsilon     () = global.DiffSharp.Config.GlobalConfig.Float32FixedPointEpsilon
 let inline log10Val              () = log10ValFloat32
 
-/// Scalar numeric type keeping dual numbers for forward mode and adjoints and tapes for reverse mode AD, with nesting capability, using tags to avoid perturbation confusion
+// Scalar numeric type keeping dual numbers for forward mode and adjoints and tapes for reverse mode AD, with nesting capability, using tags to avoid perturbation confusion
 [<CustomEquality; CustomComparison>]
 type DNumber =
     | D of number // Primal
@@ -522,6 +522,17 @@ and DVector =
             | DV(_) -> failwith "Cannot set fan-out value of DV."
             | DVF(_,_,_) -> failwith "Cannot set fan-out value of DVF."
             | DVR(_,_,_,f,_) -> f := v
+
+    member d.Buffer
+        with get() =
+            let rec prec x =
+                match x with
+                | DV(p) -> p
+                | DVF(xp,_,_) -> prec xp
+                | DVR(xp,_,_,_,_) -> prec xp
+            let data = (prec d)
+            data
+
     member d.GetForward(t:DVector, i:uint32) = DVF(d, t, i)
     member d.GetReverse(i:uint32) = DVR(d, ref (DVector.ZeroN d.Length), Noop, ref 0u, i)
     member d.Copy() =
@@ -541,6 +552,13 @@ and DVector =
             | DVF(ap,at,ai) -> DF(ap.[i], at.[i], ai)
             | DVR(ap,_,_,_,ai) -> DR(ap.[i], ref (D number0), Item_DV(d, i), ref 0u, ai)
 
+    member d.ToRowDM() =
+        match d with
+        | DV(ap) -> DNDArray.OfNumberArray(1, seq [ap.SubData] |> Seq.concat |> Seq.toArray)
+        | DVF(ap,at,ai) -> DMF(ap.ToRowDM(), at.ToRowDM(), ai)
+        | DVR(ap,_,_,_,ai) -> let cp = ap.ToRowDM() in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), RowMatrix_DV(d), ref 0u, ai)
+    member d.ToColDM() = DNDArray.Transpose(d.ToRowDM())
+
     member d.GetSlice(lower, upper) =
         let l = defaultArg lower 0
         let u = defaultArg upper (d.Length - 1)
@@ -556,12 +574,6 @@ and DVector =
             Array.init ap.Length (fun i -> DF(ap.[i], at.[i], ai))
         | DVR(ap,_,_,_,ai) ->
             Array.init ap.Length (fun i -> DR(ap.[i], ref (D number0), Item_DV(d, i), ref 0u, ai))
-    member d.ToRowDM() =
-        match d with
-        | DV(ap) -> seq [ap.SubData] |> array2D |> DM
-        | DVF(ap,at,ai) -> DMF(ap.ToRowDM(), at.ToRowDM(), ai)
-        | DVR(ap,_,_,_,ai) -> let cp = ap.ToRowDM() in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), RowMatrix_DV(d), ref 0u, ai)
-    member d.ToColDM() = DMatrix.Transpose(d.ToRowDM())
 
     override d.ToString() =
         let (d':number[]) = DVector.op_Explicit(d)
@@ -592,7 +604,7 @@ and DVector =
         sb.Append("]") |> ignore
         sb.ToString()
     static member Zero = DV(new DataBuffer<number>(Array.empty))
-    static member ZeroN n = DV(new DataBuffer<number>((Array.zeroCreate n)))
+    static member ZeroN n = DV(new DataBuffer<number>((Array.zeroCreate n)))        
     static member op_Explicit(d:DVector):number[] =
         let rec prec x =
             match x with
@@ -629,19 +641,19 @@ and DVector =
 
     static member inline Op_DV_DV (a, ff, fd, df, r) =
         match a with
-        | DV(ap)                      -> DV(DataBuffer<number>(ff(ap.SubData)))
+        | DV(ap)                      -> DV(ff(ap))
         | DVF(ap, at, ai)             -> let cp = fd(ap) in DVF(cp, df(cp, ap, at), ai)
         | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DVR(cp, ref (DVector.ZeroN cp.Length), r(a), ref 0u, ai)
 
     static member inline Op_DV_DM (a, ff, fd, df, r) =
         match a with
-        | DV(ap)                      -> DM(ff(ap.SubData))
+        | DV(ap)                      -> DM(ff(ap))
         | DVF(ap, at, ai)             -> let cp = fd(ap) in DMF(cp, df(cp, ap, at), ai)
-        | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r(a), ref 0u, ai)
+        | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r(a), ref 0u, ai)
 
     static member inline Op_DV_D (a, ff, fd, df, r) =
         match a with
-        | DV(ap)                      -> D(ff(ap.SubData))
+        | DV(ap)                      -> D(ff(ap))
         | DVF(ap, at, ai)             -> let cp = fd(ap) in DF(cp, df(cp, ap, at), ai)
         | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DR(cp, ref (D number0), r(a), ref 0u, ai)
 
@@ -649,7 +661,7 @@ and DVector =
         match a with
         | DV(ap) ->
             match b with
-            | DV(bp)                  -> DV(DataBuffer<number>(ff(ap.SubData, bp.SubData)))
+            | DV(bp)                  -> DV(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -683,9 +695,9 @@ and DVector =
         match a with
         | DV(ap) ->
             match b with
-            | DV(bp)                  -> DM(ff(ap.SubData, bp.SubData))
+            | DV(bp)                  -> DM(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
             match b with
             | DV(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -696,28 +708,28 @@ and DVector =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DVR(ap,  _,  _,  _, ai) ->
             match b with
-            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
             | DVF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DV_DV_D (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
         | DV(ap) ->
             match b with
-            | DV(bp)                  -> D(ff(ap.SubData, bp.SubData))
+            | DV(bp)                  -> D(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> DR(fd(a, bp), ref (D number0), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -751,7 +763,7 @@ and DVector =
         match a with
         | DV(ap) ->
             match b with
-            | D(bp)                   -> DV(DataBuffer<number>(ff(ap.SubData, bp)))
+            | D(bp)                   -> DV(ff(ap, bp))
             | DF(bp, bt, bi)          -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DR(bp,  _,  _,  _, bi)  -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -786,7 +798,7 @@ and DVector =
         match a with
         | D(ap) ->
             match b with
-            | DV(bp)                  -> DV(DataBuffer<number>(ff(ap, bp.SubData)))
+            | DV(bp)                  -> DV(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DF(ap, at, ai) ->
@@ -1058,7 +1070,7 @@ and DVector =
 
     /// Add scalar `b` to vector `a` at index `i`
     static member AddItem (a:DVector, i:int, b:DNumber) =
-        let inline ff(a, b) = let aa = Array.copy a in aa.[i] <- aa.[i] + b; aa
+        let inline ff(a:IDataBuffer, b) = let aa = a.DeepCopy in aa.SubData.[i] <- aa.SubData.[i] + b; aa
         let inline fd(a, b) = DVector.AddItem(a, i, b)
         let inline df_da(cp, ap, at) = at
         let inline df_db(cp, bp, bt) = DVector.AddItem(DVector.ZeroN a.Length, i, bt)
@@ -1070,10 +1082,10 @@ and DVector =
     
     /// Add subvector `b` to vector `a`, starting from index `i`
     static member AddSubVector (a:DVector, i:int, b:DVector) =
-        let inline ff(a:_[], b:_[]) = 
-            let aa = Array.copy a 
+        let inline ff(a:IDataBuffer, b:IDataBuffer) = 
+            let aa = a.DeepCopy
             for j = 0 to b.Length - 1 do
-                aa.[i + j] <- aa.[i + j] + b.[j]
+                aa.SubData.[i + j] <- aa.SubData.[i + j] + b.SubData.[j]
             aa
         let inline fd(a, b) = DVector.AddSubVector(a, i, b)
         let inline df_da(cp, ap, at) = at
@@ -1288,7 +1300,7 @@ and DVector =
         elif b.Length = 0 then
             a
         else
-            let inline ff(a, b) = Array.append a b
+            let inline ff(a:IDataBuffer, b:IDataBuffer) = DataBuffer<number>(Array.append a.SubData b.SubData)
             let inline fd(a, b) = DVector.Append(a, b)
             let inline df_da(cp, ap, at) = DVector.Append(at, DVector.ZeroN b.Length)
             let inline df_db(cp, bp, bt) = DVector.Append(DVector.ZeroN a.Length, bt)
@@ -1321,15 +1333,6 @@ and DVector =
 
     static member SoftPlus (a:DVector) = log (number1 + exp a)    
     static member SoftSign (a:DVector) = a ./ (number1 + abs a)
-    static member LogSumExp (a:DVector) =
-        let inline ff(a) = 
-            let m = Array.max a
-            let aa = Backend(a).Sub_V_S(a, m)
-            m + log (Backend(a).Map_F_V(exp, aa) |> Array.sum)
-        let inline fd(a) = DVector.LogSumExp(a)
-        let inline df(cp:DNumber, ap:DVector, at:DVector) = (at * (exp ap)) / exp cp // cp = DV.LogSumExp(ap)
-        let inline r(a) = LogSumExp_DV(a)
-        DVector.Op_DV_D (a, ff, fd, df, r)
 
     static member Mean (a:DVector) =
         DVector.Sum(a) / a.Length
@@ -1403,10 +1406,10 @@ and DVector =
 
 
 /// Matrix numeric type keeping dual numbers for forward mode and adjoints and tapes for reverse mode AD, with nesting capability, using tags to avoid perturbation confusion
-and DMatrix =
-    | DM of number[,] // Primal
-    | DMF of DMatrix * DMatrix * uint32 // Primal, tangent, tag
-    | DMR of DMatrix * (DMatrix ref) * TraceOp * (uint32 ref) * uint32 // Primal, adjoint, parent operation, fan-out counter, tag
+and DNDArray =
+    | DM of ShapedDataBufferView<number> // Primal
+    | DMF of DNDArray * DNDArray * uint32 // Primal, tangent, tag
+    | DMR of DNDArray * (DNDArray ref) * TraceOp * (uint32 ref) * uint32 // Primal, adjoint, parent operation, fan-out counter, tag
 
     /// Primal value of this DM
     member d.P =
@@ -1425,14 +1428,14 @@ and DMatrix =
     /// Tangent value of this DM
     member d.T =
         match d with
-        | DM(_) -> DMatrix.ZeroMN d.Rows d.Cols
+        | DM(_) -> DNDArray.ZeroMN d.Rows d.Cols
         | DMF(_,at,_) -> at
         | DMR(_,_,_,_,_) -> failwith "Cannot get tangent value of DMR."
     /// Adjoint value of this DM
     member d.A
         with get() =
             match d with
-            | DM(_) -> DMatrix.ZeroMN d.Rows d.Cols
+            | DM(_) -> DNDArray.ZeroMN d.Rows d.Cols
             | DMF(_,_,_) -> failwith "Cannot get adjoint value of DMF."
             | DMR(_,a,_,_,_) -> !a
         and set(v) =
@@ -1452,11 +1455,11 @@ and DMatrix =
             | DM(_) -> failwith "Cannot set fan-out value of DM."
             | DMF(_,_,_) -> failwith "Cannot set fan-out value of DMF."
             | DMR(_,_,_,f,_) -> f := v
-    member d.GetForward(t:DMatrix, i:uint32) = DMF(d, t, i)
-    member d.GetReverse(i:uint32) = DMR(d, ref (DMatrix.ZeroMN d.Rows d.Cols), Noop, ref 0u, i)
+    member d.GetForward(t:DNDArray, i:uint32) = DMF(d, t, i)
+    member d.GetReverse(i:uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols), Noop, ref 0u, i)
     member d.Copy() =
         match d with
-        | DM(ap) -> DM(Array2D.copy ap)
+        | DM(ap) -> DM(ap)
         | DMF(ap,at,ai) -> DMF(ap.Copy(), at.Copy(), ai)
         | DMR(ap,aa,at,af,ai) -> DMR(ap.Copy(), ref ((!aa).Copy()), at, ref (!af), ai)
     member d.Length =
@@ -1466,14 +1469,14 @@ and DMatrix =
         | DMR(ap,_,_,_,_) -> ap.Length
     member d.Rows =
         match d with
-        | DM(ap) -> Array2D.length1 ap
-        | DMF(ap,_,_) -> ap.Rows
-        | DMR(ap,_,_,_,_) -> ap.Rows
+        | DM(ap) -> int32 ap.Rows
+        | DMF(ap,_,_) -> int32 ap.Rows
+        | DMR(ap,_,_,_,_) -> int32 ap.Rows
     member d.Cols =
         match d with
-        | DM(ap) -> Array2D.length2 ap
-        | DMF(ap,_,_) -> ap.Cols
-        | DMR(ap,_,_,_,_) -> ap.Cols
+        | DM(ap) -> int32 ap.Cols
+        | DMF(ap,_,_) -> int32 ap.Cols
+        | DMR(ap,_,_,_,_) -> int32 ap.Cols
     member d.Item
         with get (i, j) =
             match d with
@@ -1481,37 +1484,14 @@ and DMatrix =
             | DMF(ap,at,ai) -> DF(ap.[i,j], at.[i,j], ai)
             | DMR(ap,_,_,_,ai) -> DR(ap.[i,j], ref (D number0), Item_DM(d, i, j), ref 0u, ai)
 
-    member d.GetSlice(rowStart, rowFinish, colStart, colFinish) =
-        let rowStart = defaultArg rowStart 0
-        let rowFinish = defaultArg rowFinish (d.Rows - 1)
-        let colStart = defaultArg colStart 0
-        let colFinish = defaultArg colFinish (d.Cols - 1)
-        match d with
-        | DM(ap) -> DM(ap.[rowStart..rowFinish, colStart..colFinish])
-        | DMF(ap,at,ai) -> DMF(ap.[rowStart..rowFinish, colStart..colFinish], at.[rowStart..rowFinish, colStart..colFinish], ai)
-        | DMR(ap,_,_,_,ai) -> let cp = ap.[rowStart..rowFinish, colStart..colFinish] in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), Slice_DM(d, rowStart, rowFinish), ref 0u, ai)
-    member d.GetSlice(row, colStart, colFinish) =
-        let colStart = defaultArg colStart 0
-        let colFinish = defaultArg colFinish (d.Cols - 1)
-        match d with
-        | DM(ap) -> DV(DataBuffer<number>(ap.[row, colStart..colFinish]))
-        | DMF(ap,at,ai) -> DVF(ap.[row, colStart..colFinish], at.[row, colStart..colFinish], ai)
-        | DMR(ap,_,_,_,ai) -> let cp = ap.[row, colStart..colFinish] in DVR(cp, ref (DVector.ZeroN cp.Length), SliceRow_DM(d, row, colStart), ref 0u, ai)
-    member d.GetSlice(rowStart, rowFinish, col) =
-        let rowStart = defaultArg rowStart 0
-        let rowFinish = defaultArg rowFinish (d.Rows - 1)
-        match d with
-        | DM(ap) -> DV(DataBuffer<number>(ap.[rowStart..rowFinish, col]))
-        | DMF(ap,at,ai) -> DVF(ap.[rowStart..rowFinish, col], at.[rowStart..rowFinish, col], ai)
-        | DMR(ap,_,_,_,ai) -> let cp = ap.[rowStart..rowFinish, col] in DVR(cp, ref (DVector.ZeroN cp.Length), SliceCol_DM(d, rowStart, col), ref 0u, ai)
-
-    member d.GetRows() =
-        seq {for i = 0 to d.Rows - 1 do yield d.[i,*]}
-    member d.GetCols() =
-        seq {for j = 0 to d.Cols - 1 do yield d.[*,j]}
+    member d.FlatItem
+        with get (i) =
+            match d with
+            | DM(ap) -> D(ap.FlatItem(i))
+            | DMF(ap,at,ai) -> DF(ap.FlatItem(i), at.FlatItem(i), ai)
+            | DMR(ap,_,_,_,ai) -> DR(ap.FlatItem(i), ref (D number0), Item_DM(d, i / d.Rows, i % d.Rows), ref 0u, ai)
 
     override d.ToString() =
-        let (d':number[,]) = DMatrix.op_Explicit(d)
         let sb = System.Text.StringBuilder()
         match d with
         | DM(_) -> sb.AppendLine(sprintf "DM : %i x %i" d.Rows d.Cols) |> ignore
@@ -1519,94 +1499,62 @@ and DMatrix =
         | DMR(_) -> sb.AppendLine(sprintf "DMR: %i x %i" d.Rows d.Cols) |> ignore
         for i = 0 to d.Rows - 1 do
             for j = 0 to d.Cols - 1 do
-                sb.Append(sprintf "% 9.3g " d'.[i, j]) |> ignore
+                sb.Append(sprintf "%A " (d.Item(i, j))) |> ignore
             if i < d.Rows - 1 then sb.AppendLine() |> ignore
         sb.ToString()
-    member d.ToMathematicaString() =
-        let (d':number[,]) = DMatrix.op_Explicit(d)
-        let sb = System.Text.StringBuilder()
-        sb.Append("{") |> ignore
-        for i = 0 to d.Rows - 1 do
-            sb.Append("{") |> ignore
-            for j = 0 to d.Cols - 1 do
-                sb.Append(sprintf "%.2f" d'.[i, j]) |> ignore
-                if j <> d.Cols - 1 then sb.Append(", ") |> ignore
-            sb.Append("}") |> ignore
-            if i <> d.Rows - 1 then sb.Append(", ") |> ignore
-        sb.Append("}") |> ignore
-        sb.ToString()
-    member d.ToMatlabString() =
-        let (d':number[,]) = DMatrix.op_Explicit(d)
-        let sb = System.Text.StringBuilder()
-        sb.Append("[") |> ignore
-        for i = 0 to d.Rows - 1 do
-            for j = 0 to d.Cols - 1 do
-                sb.Append(sprintf "%.2f" d'.[i, j]) |> ignore
-                if j < d.Cols - 1 then sb.Append(" ") |> ignore
-            if i < d.Rows - 1 then sb.Append("; ") |> ignore
-        sb.Append("]") |> ignore
-        sb.ToString()
-    static member Zero = DM Array2D.empty
-    static member ZeroMN m n = DM (Array2D.zeroCreate m n)
-    static member op_Explicit(d:DMatrix):number[,] =
-        let rec prec x =
-            match x with
-            | DM(p) -> p
-            | DMF(xp,_,_) -> prec xp
-            | DMR(xp,_,_,_,_) -> prec xp
-        prec d
-    static member op_Explicit(d:number[,]) = DM(d)
-    static member OfArray2D (a:DNumber[,]) =
-        // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
-        match a.[0, 0] with
-        | D(_) -> DM (a |> Array2D.map toNumber)
-        | DF(_,_,ai) ->
-            let ap = a |> Array2D.map (fun x -> x.P)
-            let at = a |> Array2D.map (fun x -> x.T)
-            DMF(DMatrix.OfArray2D(ap), DMatrix.OfArray2D(at), ai)
-        | DR(_,_,_,_,ai) ->
-            let ap = a |> Array2D.map (fun x -> x.P)
-            let cp = DMatrix.OfArray2D(ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), Make_DM_ofDs(a), ref 0u, ai)
-    // Creates a matrix with `m` rows from array `a`, filling columns from left to right and rows from top to bottom. The number of columns will be deduced from `m` and the length of `a`. The length of `a` must be an integer multiple of `m`.
-    static member OfArray (m:int, a:DNumber[]) =
-        let n = a.Length / m
-        Array2D.init m n (fun i j -> a.[i * n + j]) |> DMatrix.OfArray2D
+
+    static member Zero = DM(ShapedDataBufferView(DataBuffer<number>(Array.empty)))
+    static member ZeroMN m n = DM(ShapedDataBufferView(DataBuffer<number>(Array.create (m * n) number0), int64 m, int64 n))
+
     static member OfRows (s:seq<DVector>) = 
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
         match Seq.head s with
         | DV(_) ->
-            s |> Seq.map DVector.op_Explicit |> array2D |> DM
+           DNDArray.OfNumberArray(Seq.length s, s |> Seq.map DVector.op_Explicit |> Seq.concat |> Seq.toArray)
         | DVF(_,_,ai) ->
             let ap = s |> Seq.map (fun x -> x.P)
             let at = s |> Seq.map (fun x -> x.T)
-            DMF(DMatrix.OfRows(ap), DMatrix.OfRows(at), ai)
+            DMF(DNDArray.OfRows(ap), DNDArray.OfRows(at), ai)
         | DVR(_,_,_,_,ai) ->
             let ap = s |> Seq.map (fun x -> x.P)
-            let cp = DMatrix.OfRows(ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), Make_DMRows_ofDVs(s |> Seq.toArray), ref 0u, ai)
+            let cp = DNDArray.OfRows(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), Make_DMRows_ofDVs(s |> Seq.toArray), ref 0u, ai)
 
-    static member OfRows (m:int, a:DVector) =
-        match a with
-        | DV(ap) -> DM(Backend(a).RepeatReshapeCopy_V_MRows(m, ap.SubData))
-        | DVF(ap,at,ai) -> DMF(DMatrix.OfRows(m, ap), DMatrix.OfRows(m, at), ai)
-        | DVR(ap,_,_,_,ai) ->
-            let cp = DMatrix.OfRows(m, ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), Make_DMRows_ofDV(a), ref 0u, ai)
+    // Creates a matrix with `m` rows from array `a`, filling columns from left to right and rows from top to bottom. The number of columns will be deduced from `m` and the length of `a`. The length of `a` must be an integer multiple of `m`.
+    static member OfDNumberArray (m : int, a : DNumber[]) =
+        let n = a.Length / m
+        let numbers = Seq.cast<number> a |> Seq.toArray<number>
+        let size = m * n
+        let newarray = Array.create size number0
+        for i = 0 to size
+            do newarray.[i] <- numbers.[i]
+        match a.[0] with 
+        | D(_) -> 
+            DM(ShapedDataBufferView(DataBuffer<number>(numbers), int64 m, int64 n))
+        | DF(_,_,ai) -> 
+            DMF(DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P)), DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.T)), ai)
+        | DR(_,_,_,_,ai) -> 
+            let cp = DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P))
+            DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), Make_DM_ofDs(a), ref 0u, ai)
 
-    static member OfCols (n:int, a:DVector) =
-        match a with
-        | DV(ap) -> DM(Backend(a).RepeatReshapeCopy_V_MCols(n, ap.SubData))
-        | DVF(ap,at,ai) -> DMF(DMatrix.OfCols(n, ap), DMatrix.OfCols(n, at), ai)
-        | DVR(ap,_,_,_,ai) ->
-            let cp = DMatrix.OfCols(n, ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), Make_DMCols_ofDV(a), ref 0u, ai)
+    static member OfNumberArray (m : int, a : number[]) =
+        let n = a.Length / m
+        let size = m * n
+        let mutable result = a
+        if (m % a.Length <> 0) then
+            let result = Array.create size number0
+            for i = 0 to a.Length
+                do result.[i] <- a.[i]
+        DM(ShapedDataBufferView(DataBuffer<number>(result), int64 m, int64 n))
 
     static member inline Op_DM_DM (a, ff, fd, df, r) =
         match a with
         | DM(ap)                      -> DM(ff(ap))
         | DMF(ap, at, ai)             -> let cp = fd(ap) in DMF(cp, df(cp, ap, at), ai)
-        | DMR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r(a), ref 0u, ai)
+        | DMR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r(a), ref 0u, ai)
 
     static member inline Op_DM_DV (a, ff, fd, df, r) =
         match a with
-        | DM(ap)                      -> DV(DataBuffer<number>(ff(ap)))
+        | DM(ap)                      -> DV(ff(ap))
         | DMF(ap, at, ai)             -> let cp = fd(ap) in DVF(cp, df(cp, ap, at), ai)
         | DMR(ap,_,_,_,ai)            -> let cp = fd(ap) in DVR(cp, ref (DVector.ZeroN cp.Length), r(a), ref 0u, ai)
 
@@ -1622,7 +1570,7 @@ and DMatrix =
             match b with
             | DM(bp)                  -> DM(ff(ap, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
             match b with
             | DM(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1633,22 +1581,22 @@ and DMatrix =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DMR(ap,  _,  _,  _, ai) ->
             match b with
-            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
             | DMF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
@@ -1656,7 +1604,7 @@ and DMatrix =
             match b with
             | D(bp)                   -> DM(ff(ap, bp))
             | DF(bp, bt, bi)          -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DR(bp,  _,  _,  _, bi)  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DR(bp,  _,  _,  _, bi)  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
             match b with
             | D(_)                    -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1667,22 +1615,22 @@ and DMatrix =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DMR(ap,  _,  _,  _, ai) ->
             match b with
-            | D(_)                    -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | D(_)                    -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
             | DF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
@@ -1690,7 +1638,7 @@ and DMatrix =
             match b with
             | DM(bp)                  -> DM(ff(ap, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DF(ap, at, ai) ->
             match b with
             | DM(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1701,28 +1649,28 @@ and DMatrix =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DR(ap,  _,  _,  _, ai) ->
             match b with
-            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
             | DMF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
         | DM(ap) ->
             match b with
-            | DV(bp)                  -> DV(DataBuffer<number>(ff(ap, bp.SubData)))
+            | DV(bp)                  -> DV(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
@@ -1756,7 +1704,7 @@ and DMatrix =
         match a with
         | DV(ap) ->
             match b with
-            | DM(bp)                  -> DV(DataBuffer<number>(ff(ap.SubData, bp)))
+            | DM(bp)                  -> DV(ff(ap, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DVF(cp, df_db(cp, bp, bt), bi)
             | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DVR(cp, ref (DVector.ZeroN cp.Length), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
@@ -1790,9 +1738,9 @@ and DMatrix =
         match a with
         | DM(ap) ->
             match b with
-            | DV(bp)                  -> DM(ff(ap, bp.SubData))
+            | DV(bp)                  -> DM(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
             match b with
             | DV(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1803,30 +1751,30 @@ and DMatrix =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DMR(ap,  _,  _,  _, ai) ->
             match b with
-            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
             | DVF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DV_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
         | DV(ap) ->
             match b with
-            | DM(bp)                  -> DM(ff(ap.SubData, bp))
+            | DM(bp)                  -> DM(ff(ap, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
             match b with
             | DM(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1837,25 +1785,25 @@ and DMatrix =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DVR(ap,  _,  _,  _, ai) ->
             match b with
-            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
             | DMF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DMatrix.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     /// Element-wise addition of `a` and `b`
-    static member (+) (a:DMatrix, b:DMatrix) =
+    static member (+) (a:DNDArray, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Add_M_M(a, b)
         let inline fd(a, b) = a + b
         let inline df_da(cp, ap, at) = at
@@ -1864,10 +1812,10 @@ and DMatrix =
         let inline r_d_d(a, b) = Add_DM_DM(a, b)
         let inline r_d_c(a, b) = Add_DM_DMCons(a)
         let inline r_c_d(a, b) = Add_DM_DMCons(b)
-        DMatrix.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Element-wise subtraction of `a` and `b`
-    static member (-) (a:DMatrix, b:DMatrix) =
+    static member (-) (a:DNDArray, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Sub_M_M(a, b)
         let inline fd(a, b) = a - b
         let inline df_da(cp, ap, at) = at
@@ -1876,10 +1824,10 @@ and DMatrix =
         let inline r_d_d(a, b) = Sub_DM_DM(a, b)
         let inline r_d_c(a, b) = Sub_DM_DMCons(a)
         let inline r_c_d(a, b) = Sub_DMCons_DM(b)
-        DMatrix.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Matrix product of `a` and `b`
-    static member (*) (a:DMatrix, b:DMatrix) =
+    static member (*) (a:DNDArray, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Mul_M_M(a, b)
         let inline fd(a, b) = a * b
         let inline df_da(cp, ap, at) = at * b
@@ -1888,10 +1836,10 @@ and DMatrix =
         let inline r_d_d(a, b) = Mul_DM_DM(a, b)
         let inline r_d_c(a, b) = Mul_DM_DMCons(a, b)
         let inline r_c_d(a, b) = Mul_DMCons_DM(a, b)
-        DMatrix.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Element-wise (Hadamard, Schur) product of `a` and `b`
-    static member (.*) (a:DMatrix, b:DMatrix) =
+    static member (.*) (a:DNDArray, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Mul_Had_M_M(a, b)
         let inline fd(a, b) = a .* b
         let inline df_da(cp, ap, at) = at .* b
@@ -1900,10 +1848,10 @@ and DMatrix =
         let inline r_d_d(a, b) = Mul_Had_DM_DM(a, b)
         let inline r_d_c(a, b) = Mul_Had_DM_DMCons(a, b)
         let inline r_c_d(a, b) = Mul_Had_DM_DMCons(b, a)
-        DMatrix.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Right-multiply matrix `a` by vector `b`
-    static member (*) (a:DMatrix, b:DVector) =
+    static member (*) (a:DNDArray, b:DVector) =
         let inline ff(a, b) = Backend(a).Mul_M_V(a, b)
         let inline fd(a, b) = a * b
         let inline df_da(cp, ap, at) = at * b
@@ -1912,10 +1860,10 @@ and DMatrix =
         let inline r_d_d(a, b) = Mul_DM_DV(a, b)
         let inline r_d_c(a, b) = Mul_DM_DVCons(a, b)
         let inline r_c_d(a, b) = Mul_DMCons_DV(a, b)
-        DMatrix.Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Left-multiply matrix `b` by vector `a`
-    static member (*) (a:DVector, b:DMatrix) =
+    static member (*) (a:DVector, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Mul_V_M(a, b)
         let inline fd(a, b) = a * b
         let inline df_da(cp, ap, at) = at * b
@@ -1924,10 +1872,10 @@ and DMatrix =
         let inline r_d_d(a, b) = Mul_DV_DM(a, b)
         let inline r_d_c(a, b) = Mul_DV_DMCons(a, b)
         let inline r_c_d(a, b) = Mul_DVCons_DM(a, b)
-        DMatrix.Op_DV_DM_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DV_DM_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Element-wise (Hadamard, Schur) division `a` and `b`
-    static member (./) (a:DMatrix, b:DMatrix) =
+    static member (./) (a:DNDArray, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Map2_F_M_M((/), a, b)
         let inline fd(a, b) = a ./ b
         let inline df_da(cp, ap, at) = at ./ b
@@ -1936,9 +1884,9 @@ and DMatrix =
         let inline r_d_d(a, b) = Div_Had_DM_DM(a, b)
         let inline r_d_c(a, b) = Div_Had_DM_DMCons(a, b)
         let inline r_c_d(a, b) = Div_Had_DMCons_DM(a, b)
-        DMatrix.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member Pow (a:DMatrix, b:DMatrix) =
+    static member Pow (a:DNDArray, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Map2_F_M_M((fun x y -> x ** y), a, b)
         let inline fd(a, b) = a ** b
         let inline df_da(cp, ap, at) = at .* (ap ** (b - D number1)) .* b
@@ -1947,9 +1895,9 @@ and DMatrix =
         let inline r_d_d(a, b) = Pow_DM_DM(a, b)
         let inline r_d_c(a, b) = Pow_DM_DMCons(a, b)
         let inline r_c_d(a, b) = Pow_DMCons_DM(a, b)
-        DMatrix.Op_DM_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
-    static member Atan2 (a:DMatrix, b:DMatrix) =
+    static member Atan2 (a:DNDArray, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Map2_F_M_M(atan2, a, b)
         let inline fd(a, b) = atan2 a b
         let inline df_da(cp, ap, at) = (at .* b) ./ ((ap .* ap) + (b .* b))
@@ -1958,9 +1906,9 @@ and DMatrix =
         let inline r_d_d(a, b) = Atan2_DM_DM(a, b)
         let inline r_d_c(a, b) = Atan2_DM_DMCons(a, b)
         let inline r_c_d(a, b) = Atan2_DMCons_DM(a, b)
-        DMatrix.Op_DM_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (*) (a:DMatrix, b:DNumber) =
+    static member (*) (a:DNDArray, b:DNumber) =
         let inline ff(a, b) = Backend(a).Mul_S_M(b, a)
         let inline fd(a, b) = a * b
         let inline df_da(cp, ap, at) = at * b
@@ -1969,9 +1917,9 @@ and DMatrix =
         let inline r_d_d(a, b) = Mul_DM_D(a, b)
         let inline r_d_c(a, b) = Mul_DM_DCons(a, b)
         let inline r_c_d(a, b) = Mul_DMCons_D(a, b)
-        DMatrix.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (*) (a:DNumber, b:DMatrix) =
+    static member (*) (a:DNumber, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Mul_S_M(a, b)
         let inline fd(a, b) = a * b
         let inline df_da(cp, ap, at) = at * b
@@ -1980,9 +1928,9 @@ and DMatrix =
         let inline r_d_d(a, b) = Mul_DM_D(b, a)
         let inline r_d_c(a, b) = Mul_DM_DCons(b, a)
         let inline r_c_d(a, b) = Mul_DMCons_D(b, a)
-        DMatrix.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (/) (a:DMatrix, b:DNumber) =
+    static member (/) (a:DNDArray, b:DNumber) =
         let inline ff(a, b) = Backend(a).Mul_S_M(number1 / b, a)
         let inline fd(a, b) = a / b
         let inline df_da(cp, ap, at) = at / b
@@ -1991,487 +1939,445 @@ and DMatrix =
         let inline r_d_d(a, b) = Div_DM_D(a, b)
         let inline r_d_c(a, b) = Div_DM_DCons(a, b)
         let inline r_c_d(a, b) = Div_DMCons_D(a, b)
-        DMatrix.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (/) (a:DNumber, b:DMatrix) =
+    static member (/) (a:DNumber, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Map_F_M((fun v -> a / v), b)
         let inline fd(a, b) = a / b
         let inline df_da(cp, ap, at) = at / b
         let inline df_db(cp, bp, bt) = -bt .* (cp ./ bp) // cp = a / bp
-        let inline df_dab(cp:DMatrix, ap:DNumber, at:DNumber, bp:DMatrix, bt:DMatrix) = (at - bt .* cp) ./ bp // cp = ap / bp
+        let inline df_dab(cp:DNDArray, ap:DNumber, at:DNumber, bp:DNDArray, bt:DNDArray) = (at - bt .* cp) ./ bp // cp = ap / bp
         let inline r_d_d(a, b) = Div_D_DM(a, b)
         let inline r_d_c(a, b) = Div_D_DMCons(a, b)
         let inline r_c_d(a, b) = Div_DCons_DM(a, b)
-        DMatrix.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (+) (a:DMatrix, b:DNumber) =
+    static member (+) (a:DNDArray, b:DNumber) =
         let inline ff(a, b) = Backend(a).Add_S_M(b, a)
         let inline fd(a, b) = a + b
         let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DMatrix.OfArray2D(Array2D.create a.Rows a.Cols bt)
+        let inline df_db(cp, bp, bt) = DNDArray.OfDNumberArray(a.Rows, Array.create (a.Rows * a.Cols) bt)
         let inline df_dab(cp, ap, at, bp, bt) = at + bt
         let inline r_d_d(a, b) = Add_DM_D(a, b)
         let inline r_d_c(a, b) = Add_DM_DCons(a)
         let inline r_c_d(a, b) = Add_DMCons_D(b)
-        DMatrix.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (+) (a:DNumber, b:DMatrix) =
+    static member (+) (a:DNumber, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Add_S_M(a, b)
         let inline fd(a, b) = a + b
-        let inline df_da(cp, ap, at) = DMatrix.OfArray2D(Array2D.create b.Rows b.Cols at)
+        let inline df_da(cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at)
         let inline df_db(cp, bp, bt) = bt
         let inline df_dab(cp, ap, at, bp, bt) = at + bt
         let inline r_d_d(a, b) = Add_DM_D(b, a)
         let inline r_d_c(a, b) = Add_DMCons_D(a)
         let inline r_c_d(a, b) = Add_DM_DCons(b)
-        DMatrix.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (-) (a:DMatrix, b:DNumber) =
+    static member (-) (a:DNDArray, b:DNumber) =
         let inline ff(a, b) = Backend(a).Sub_M_S(a, b)
         let inline fd(a, b) = a - b
         let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DMatrix.OfArray2D(Array2D.create a.Rows a.Cols -bt)
+        let inline df_db(cp, bp, bt) = DNDArray.OfDNumberArray(a.Rows, Array.create (a.Rows * a.Cols) -bt)
         let inline df_dab(cp, ap, at, bp, bt) = at - bt
         let inline r_d_d(a, b) = Sub_DM_D(a, b)
         let inline r_d_c(a, b) = Sub_DM_DCons(a)
         let inline r_c_d(a, b) = Sub_DMCons_D(b)
-        DMatrix.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member (+) (a:DVector, b:DMatrix) =
-        let inline ff(a, b) = Backend(a).Add_V_MCols(a, b)
-        let inline fd(a, b) = a + b
-        let inline df_da(cp, ap, at) = DMatrix.OfCols(b.Cols, at)
-        let inline df_db(cp, bp, bt) = bt
-        let inline df_dab(cp, ap, at, bp, bt) = at + bt
-        let inline r_d_d(a, b) = Add_DMCols_DV(b, a)
-        let inline r_d_c(a, b) = Add_DMColsCons_DV(a)
-        let inline r_c_d(a, b) = Add_DMCols_DVCons(b)
-        DMatrix.Op_DV_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
-
-    static member (+) (a:DMatrix, b:DVector) =
-        let inline ff(a, b) = Backend(a).Add_V_MCols(b, a)
-        let inline fd(a, b) = a + b
-        let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DMatrix.OfCols(a.Cols, bt)
-        let inline df_dab(cp, ap, at, bp, bt) = at + bt
-        let inline r_d_d(a, b) = Add_DMCols_DV(a, b)
-        let inline r_d_c(a, b) = Add_DMCols_DVCons(a)
-        let inline r_c_d(a, b) = Add_DMColsCons_DV(b)
-        DMatrix.Op_DM_DV_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
-
-    static member (-) (a:DNumber, b:DMatrix) =
+    static member (-) (a:DNumber, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Sub_S_M(a, b)
         let inline fd(a, b) = a - b
-        let inline df_da(cp, ap, at) = DMatrix.OfArray2D(Array2D.create b.Rows b.Cols at)
+        let inline df_da(cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at)
         let inline df_db(cp, bp, bt) = -bt
         let inline df_dab(cp, ap, at, bp, bt) = at - bt
         let inline r_d_d(a, b) = Sub_D_DM(a, b)
         let inline r_d_c(a, b) = Sub_D_DMCons(a)
         let inline r_c_d(a, b) = Sub_DCons_DM(b)
-        DMatrix.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member Pow (a:DMatrix, b:DNumber) =
+    static member Pow (a:DNDArray, b:DNumber) =
         let inline ff(a, b) = Backend(a).Map_F_M((fun v -> v ** b), a)
         let inline fd(a, b) = a ** b
-        let inline df_da(cp, ap:DMatrix, at:DMatrix) = at .* (ap ** (b - D number1)) * b
+        let inline df_da(cp, ap:DNDArray, at:DNDArray) = at .* (ap ** (b - D number1)) * b
         let inline df_db(cp, bp, bt) = bt * cp .* log a // cp = a ** bp
-        let inline df_dab(cp, ap:DMatrix, at:DMatrix, bp:DNumber, bt:DNumber) = (ap ** (bp - D number1)) .* ((at * bp) + (ap * bt .* log ap))
+        let inline df_dab(cp, ap:DNDArray, at:DNDArray, bp:DNumber, bt:DNumber) = (ap ** (bp - D number1)) .* ((at * bp) + (ap * bt .* log ap))
         let inline r_d_d(a, b) = Pow_DM_D(a, b)
         let inline r_d_c(a, b) = Pow_DM_DCons(a, b)
         let inline r_c_d(a, b) = Pow_DMCons_D(a, b)
-        DMatrix.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member Pow (a:DNumber, b:DMatrix) =
+    static member Pow (a:DNumber, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Map_F_M((fun v -> a ** v), b)
-        let inline fd(a:DNumber, b:DMatrix) = DMatrix.Pow(a, b)
-        let inline df_da(cp, ap:DNumber, at:DNumber) = at * (DMatrix.Pow(ap, b - D number1)) .* b
+        let inline fd(a:DNumber, b:DNDArray) = DNDArray.Pow(a, b)
+        let inline df_da(cp, ap:DNumber, at:DNumber) = at * (DNDArray.Pow(ap, b - D number1)) .* b
         let inline df_db(cp, bp, bt) = bt .* cp * log a // cp = a ** bp
-        let inline df_dab(cp, ap:DNumber, at:DNumber, bp:DMatrix, bt:DMatrix) = (DMatrix.Pow(ap, bp - D number1)) .* ((at * bp) + (ap * bt * log ap))
+        let inline df_dab(cp, ap:DNumber, at:DNumber, bp:DNDArray, bt:DNDArray) = (DNDArray.Pow(ap, bp - D number1)) .* ((at * bp) + (ap * bt * log ap))
         let inline r_d_d(a, b) = Pow_D_DM(a, b)
         let inline r_d_c(a, b) = Pow_D_DMCons(a, b)
         let inline r_c_d(a, b) = Pow_DCons_DM(a, b)
-        DMatrix.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member Atan2 (a:DMatrix, b:DNumber) =
+    static member Atan2 (a:DNDArray, b:DNumber) =
         let inline ff(a, b) = Backend(a).Map_F_M((fun v -> atan2 v b), a)
-        let inline fd(a:DMatrix, b:DNumber) = DMatrix.Atan2(a, b)
+        let inline fd(a:DNDArray, b:DNumber) = DNDArray.Atan2(a, b)
         let inline df_da(cp, ap, at) = (at * b) ./ ((ap .* ap) + (b * b))
         let inline df_db(cp, bp, bt) = (-bt * a) ./ ((a .* a) + (bp * bp))
         let inline df_dab(cp, ap, at, bp, bt) = ((at * bp) - (bt * ap)) ./ ((ap .* ap) + (bp * bp))
         let inline r_d_d(a, b) = Atan2_DM_D(a, b)
         let inline r_d_c(a, b) = Atan2_DM_DCons(a, b)
         let inline r_c_d(a, b) = Atan2_DMCons_D(a, b)
-        DMatrix.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member Atan2 (a:DNumber, b:DMatrix) =
+    static member Atan2 (a:DNumber, b:DNDArray) =
         let inline ff(a, b) = Backend(a).Map_F_M((fun v -> atan2 a v), b)
-        let inline fd(a:DNumber, b:DMatrix) = DMatrix.Atan2(a, b)
+        let inline fd(a:DNumber, b:DNDArray) = DNDArray.Atan2(a, b)
         let inline df_da(cp, ap, at) = (at * b) ./ ((ap * ap) + (b .* b))
         let inline df_db(cp, bp, bt) = (-bt * a) ./ ((a * a) + (bp .* bp))
         let inline df_dab(cp, ap, at, bp, bt) = ((at * bp) - (bt * ap)) ./ ((ap * ap) + (bp .* bp))
         let inline r_d_d(a, b) = Atan2_D_DM(a, b)
         let inline r_d_c(a, b) = Atan2_D_DMCons(a, b)
         let inline r_c_d(a, b) = Atan2_DCons_DM(a, b)
-        DMatrix.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     // DM - number binary operations
-    static member (+) (a:DMatrix, b:number) = a + D b
-    static member (-) (a:DMatrix, b:number) = a - D b
-    static member (*) (a:DMatrix, b:number) = a * D b
-    static member (/) (a:DMatrix, b:number) = a / D b
-    static member Pow (a:DMatrix, b:number) = a ** D b
-    static member Atan2 (a:DMatrix, b:number) = DMatrix.Atan2(a, D b)
+    static member (+) (a:DNDArray, b:number) = a + D b
+    static member (-) (a:DNDArray, b:number) = a - D b
+    static member (*) (a:DNDArray, b:number) = a * D b
+    static member (/) (a:DNDArray, b:number) = a / D b
+    static member Pow (a:DNDArray, b:number) = a ** D b
+    static member Atan2 (a:DNDArray, b:number) = DNDArray.Atan2(a, D b)
 
     // number - DM binary operations
-    static member (+) (a:number, b:DMatrix) = (D a) + b
-    static member (-) (a:number, b:DMatrix) = (D a) - b
-    static member (*) (a:number, b:DMatrix) = (D a) * b
-    static member (/) (a:number, b:DMatrix) = (D a) / b
-    static member Pow (a:number, b:DMatrix) = DMatrix.Pow(D a, b)
-    static member Atan2 (a:number, b:DMatrix) = DMatrix.Atan2(D a, b)
+    static member (+) (a:number, b:DNDArray) = (D a) + b
+    static member (-) (a:number, b:DNDArray) = (D a) - b
+    static member (*) (a:number, b:DNDArray) = (D a) * b
+    static member (/) (a:number, b:DNDArray) = (D a) / b
+    static member Pow (a:number, b:DNDArray) = DNDArray.Pow(D a, b)
+    static member Atan2 (a:number, b:DNDArray) = DNDArray.Atan2(D a, b)
 
     // DM - int binary operations
-    static member (+) (a:DMatrix, b:int) = a + D (toNumber b)
-    static member (-) (a:DMatrix, b:int) = a - D (toNumber b)
-    static member (*) (a:DMatrix, b:int) = a * D (toNumber b)
-    static member (/) (a:DMatrix, b:int) = a / D (toNumber b)
-    static member Pow (a:DMatrix, b:int) = a ** D (toNumber b)
-    static member Atan2 (a:DMatrix, b: int) = DMatrix.Atan2(a, D (toNumber b))
+    static member (+) (a:DNDArray, b:int) = a + D (toNumber b)
+    static member (-) (a:DNDArray, b:int) = a - D (toNumber b)
+    static member (*) (a:DNDArray, b:int) = a * D (toNumber b)
+    static member (/) (a:DNDArray, b:int) = a / D (toNumber b)
+    static member Pow (a:DNDArray, b:int) = a ** D (toNumber b)
+    static member Atan2 (a:DNDArray, b: int) = DNDArray.Atan2(a, D (toNumber b))
 
     // int - DM binary operations
-    static member (+) (a:int, b:DMatrix) = (D (toNumber a)) + b
-    static member (-) (a:int, b:DMatrix) = (D (toNumber a)) - b
-    static member (*) (a:int, b:DMatrix) = (D (toNumber a)) * b
-    static member (/) (a:int, b:DMatrix) = (D (toNumber a)) / b
-    static member Pow (a:int, b:DMatrix) = DMatrix.Pow(D (toNumber a), b)
-    static member Atan2 (a:int, b:DMatrix) = DMatrix.Atan2(D (toNumber a), b)
+    static member (+) (a:int, b:DNDArray) = (D (toNumber a)) + b
+    static member (-) (a:int, b:DNDArray) = (D (toNumber a)) - b
+    static member (*) (a:int, b:DNDArray) = (D (toNumber a)) * b
+    static member (/) (a:int, b:DNDArray) = (D (toNumber a)) / b
+    static member Pow (a:int, b:DNDArray) = DNDArray.Pow(D (toNumber a), b)
+    static member Atan2 (a:int, b:DNDArray) = DNDArray.Atan2(D (toNumber a), b)
 
-    static member Log (a:DMatrix) =
+    static member Log (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(log, a)
         let inline fd(a) = log a
         let inline df(cp, ap, at) = at ./ ap
         let inline r(a) = Log_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Log10 (a:DMatrix) =
+    static member Log10 (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(log10, a)
         let inline fd(a) = log10 a
-        let inline df(cp, ap:DMatrix, at:DMatrix) = at ./ (ap * log10Val())
+        let inline df(cp, ap:DNDArray, at:DNDArray) = at ./ (ap * log10Val())
         let inline r(a) = Log10_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Exp (a:DMatrix) =
+    static member Exp (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(exp, a)
         let inline fd(a) = exp a
         let inline df(cp, ap, at) = at .* cp // cp = exp ap
         let inline r(a) = Exp_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Sin (a:DMatrix) =
+    static member Sin (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(sin, a)
         let inline fd(a) = sin a
-        let inline df(cp, ap:DMatrix, at:DMatrix) = at .* cos ap
+        let inline df(cp, ap:DNDArray, at:DNDArray) = at .* cos ap
         let inline r(a) = Sin_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Cos (a:DMatrix) =
+    static member Cos (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(cos, a)
         let inline fd(a) = cos a
-        let inline df(cp, ap:DMatrix, at:DMatrix) = -at .* sin ap
+        let inline df(cp, ap:DNDArray, at:DNDArray) = -at .* sin ap
         let inline r(a) = Cos_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Tan (a:DMatrix) =
+    static member Tan (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(tan, a)
         let inline fd(a) = tan a
-        let inline df(cp, ap:DMatrix, at:DMatrix) = let cosa = cos ap in at ./ (cosa .* cosa)
+        let inline df(cp, ap:DNDArray, at:DNDArray) = let cosa = cos ap in at ./ (cosa .* cosa)
         let inline r(a) = Tan_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member (~-) (a:DMatrix) =
+    static member (~-) (a:DNDArray) =
         let inline ff(a) = Backend(a).Mul_S_M(numberMinus1, a)
         let inline fd(a) = -a
         let inline df(cp, ap, at) = -at
         let inline r(a) = Neg_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Sqrt (a:DMatrix) =
+    static member Sqrt (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(sqrt, a)
         let inline fd(a) = sqrt a
-        let inline df(cp:DMatrix, ap:DMatrix, at:DMatrix) = at ./ (D number2 * cp) // cp = sqrt ap
+        let inline df(cp:DNDArray, ap:DNDArray, at:DNDArray) = at ./ (D number2 * cp) // cp = sqrt ap
         let inline r(a) = Sqrt_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Sinh (a:DMatrix) =
+    static member Sinh (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(sinh, a)
         let inline fd(a) = sinh a
-        let inline df(cp:DMatrix, ap:DMatrix, at:DMatrix) = at .* cosh ap
+        let inline df(cp:DNDArray, ap:DNDArray, at:DNDArray) = at .* cosh ap
         let inline r(a) = Sinh_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Cosh (a:DMatrix) =
+    static member Cosh (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(cosh, a)
         let inline fd(a) = cosh a
-        let inline df(cp:DMatrix, ap:DMatrix, at:DMatrix) = at .* sinh ap
+        let inline df(cp:DNDArray, ap:DNDArray, at:DNDArray) = at .* sinh ap
         let inline r(a) = Cosh_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Tanh (a:DMatrix) =
+    static member Tanh (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(tanh, a)
         let inline fd(a) = tanh a
-        let inline df(cp:DMatrix, ap:DMatrix, at:DMatrix) = let cosha = cosh ap in at ./ (cosha .* cosha)
+        let inline df(cp:DNDArray, ap:DNDArray, at:DNDArray) = let cosha = cosh ap in at ./ (cosha .* cosha)
         let inline r(a) = Tanh_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Asin (a:DMatrix) =
+    static member Asin (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(asin, a)
         let inline fd(a) = asin a
-        let inline df(cp:DMatrix, ap:DMatrix, at:DMatrix) = at ./ sqrt (D number1 - (ap .* ap))
+        let inline df(cp:DNDArray, ap:DNDArray, at:DNDArray) = at ./ sqrt (D number1 - (ap .* ap))
         let inline r(a) = Asin_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Acos (a:DMatrix) =
+    static member Acos (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(acos, a)
         let inline fd(a) = acos a
-        let inline df(cp:DMatrix, ap:DMatrix, at:DMatrix) = -at ./ sqrt (D number1 - (ap .* ap))
+        let inline df(cp:DNDArray, ap:DNDArray, at:DNDArray) = -at ./ sqrt (D number1 - (ap .* ap))
         let inline r(a) = Acos_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Atan (a:DMatrix) =
+    static member Atan (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(atan, a)
         let inline fd(a) = atan a
-        let inline df(cp:DMatrix, ap:DMatrix, at:DMatrix) = at ./ sqrt (D number1 + (ap .* ap))
+        let inline df(cp:DNDArray, ap:DNDArray, at:DNDArray) = at ./ sqrt (D number1 + (ap .* ap))
         let inline r(a) = Atan_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Abs (a:DMatrix) =
+    static member Abs (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(abs, a)
         let inline fd(a) = abs a
-        let inline df(cp, ap, at) = at .* (DMatrix.Sign ap)
+        let inline df(cp, ap, at) = at .* (DNDArray.Sign ap)
         let inline r(a) = Abs_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Sign (a:DMatrix) =
+    static member Sign (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(signummod, a)
-        let inline fd(a) = DMatrix.Sign a
-        let inline df(cp, ap, at) = DMatrix.ZeroMN a.Rows a.Cols
+        let inline fd(a) = DNDArray.Sign a
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
         let inline r(a) = Sign_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Floor (a:DMatrix) =
+    static member Floor (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(floor, a)
         let inline fd(a) = floor a
-        let inline df(cp, ap, at) = DMatrix.ZeroMN a.Rows a.Cols
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
         let inline r(a) = Floor_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Ceiling (a:DMatrix) =
+    static member Ceiling (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(ceil, a)
         let inline fd(a) = ceil a
-        let inline df(cp, ap, at) = DMatrix.ZeroMN a.Rows a.Cols
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
         let inline r(a) = Ceil_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member Round (a:DMatrix) =
+    static member Round (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(round, a)
         let inline fd(a) = round a
-        let inline df(cp, ap, at) = DMatrix.ZeroMN a.Rows a.Cols
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
         let inline r(a) = Round_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
     /// Transpose of matrix `a`
-    static member Transpose(a:DMatrix) =
+    static member Transpose(a:DNDArray) =
         let inline ff(a) = Backend(a).Transpose_M(a)
-        let inline fd(a) = DMatrix.Transpose(a)
-        let inline df(cp, ap, at) = DMatrix.Transpose(at)
+        let inline fd(a) = DNDArray.Transpose(a)
+        let inline df(cp, ap, at) = DNDArray.Transpose(at)
         let inline r(a) = Transpose_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
     /// Diagonal of matrix `a`
-    static member Diagonal(a:DMatrix) =
+    static member Diagonal(a:DNDArray) =
         let inline ff(a) = Backend(a).Diagonal_M(a)
-        let inline fd(a) = DMatrix.Diagonal(a)
-        let inline df(cp, ap, at) = DMatrix.Diagonal(at)
+        let inline fd(a) = DNDArray.Diagonal(a)
+        let inline df(cp, ap, at) = DNDArray.Diagonal(at)
         let inline r(a) = Diagonal_DM(a)
-        DMatrix.Op_DM_DV (a, ff, fd, df, r)
+        DNDArray.Op_DM_DV (a, ff, fd, df, r)
 
     /// Trace of matrix `a`
-    static member Trace(a:DMatrix) =
-        DVector.Sum(DMatrix.Diagonal(a))
+    static member Trace(a:DNDArray) =
+        DVector.Sum(DNDArray.Diagonal(a))
 
     /// Sum of the entries of matrix `a`
-    static member Sum(a:DMatrix) =
-        let inline ff(a) = Backend(a).Sum_M(a)
-        let inline fd(a) = DMatrix.Sum(a)
-        let inline df(cp, ap, at) = DMatrix.Sum(at)
+    static member Sum(a:DNDArray) =
+        let inline ff(a:ShapedDataBufferView<number>) = Backend(a).Sum_M(a.DataBuffer)
+        let inline fd(a) = DNDArray.Sum(a)
+        let inline df(cp, ap, at) = DNDArray.Sum(at)
         let inline r(a) = Sum_DM(a)
-        DMatrix.Op_DM_D (a, ff, fd, df, r)
+        DNDArray.Op_DM_D (a, ff, fd, df, r)
 
     /// Solve a system of linear equations Ax = b, where the coefficient matrix `a` has general form
-    static member Solve (a:DMatrix, b:DVector) =
+    static member Solve (a:DNDArray, b:DVector) =
         let inline ff(a, b) = match Backend(a).Solve_M_V(a, b) with Some(x) -> x | _ -> ErrorMessages.InvalidArgSolve()
-        let inline fd(a, b) = DMatrix.Solve(a, b)
-        let inline df_da(cp, ap, at) = DMatrix.Solve(ap, -at * cp) // cp = DM.Solve(ap, b)
-        let inline df_db(cp, bp, bt) = DMatrix.Solve(a, bt)
-        let inline df_dab(cp, ap, at, bp, bt) = DMatrix.Solve(ap, bt - at * cp) // cp = DM.Solve(ap, bp)
+        let inline fd(a, b) = DNDArray.Solve(a, b)
+        let inline df_da(cp, ap, at) = DNDArray.Solve(ap, -at * cp) // cp = DM.Solve(ap, b)
+        let inline df_db(cp, bp, bt) = DNDArray.Solve(a, bt)
+        let inline df_dab(cp, ap, at, bp, bt) = DNDArray.Solve(ap, bt - at * cp) // cp = DM.Solve(ap, bp)
         let inline r_d_d(a, b) = Solve_DM_DV(a, b)
         let inline r_d_c(a, b) = Solve_DM_DVCons(a, b)
         let inline r_c_d(a, b) = Solve_DMCons_DV(a, b)
-        DMatrix.Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Solve a system of linear equations Ax = b, where the coefficient matrix `a` is symmetric
-    static member SolveSymmetric (a:DMatrix, b:DVector) =
+    static member SolveSymmetric (a:DNDArray, b:DVector) =
         let inline ff(a, b) = match Backend(a).SolveSymmetric_M_V(a, b) with Some(x) -> x | _ -> ErrorMessages.InvalidArgSolve()
-        let inline fd(a, b) = DMatrix.SolveSymmetric(a, b)
-        let inline df_da(cp, ap, at) = DMatrix.SolveSymmetric(ap, -at * cp) // cp = DM.Solve(ap, b)
-        let inline df_db(cp, bp, bt) = DMatrix.SolveSymmetric(a, bt)
-        let inline df_dab(cp, ap, at, bp, bt) = DMatrix.SolveSymmetric(ap, bt - at * cp) // cp = DM.Solve(ap, bp)
+        let inline fd(a, b) = DNDArray.SolveSymmetric(a, b)
+        let inline df_da(cp, ap, at) = DNDArray.SolveSymmetric(ap, -at * cp) // cp = DM.Solve(ap, b)
+        let inline df_db(cp, bp, bt) = DNDArray.SolveSymmetric(a, bt)
+        let inline df_dab(cp, ap, at, bp, bt) = DNDArray.SolveSymmetric(ap, bt - at * cp) // cp = DM.Solve(ap, bp)
         let inline r_d_d(a, b) = Solve_DM_DV(a, b)
         let inline r_d_c(a, b) = Solve_DM_DVCons(a, b)
         let inline r_c_d(a, b) = Solve_DMCons_DV(a, b)
-        DMatrix.Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
     /// Add scalar `b` to matrix `a` at row `i` and column `j`
-    static member AddItem (a:DMatrix, i:int, j:int, b:DNumber) =
-        let inline ff(a, b) = let aa = Array2D.copy a in aa.[i, j] <- aa.[i, j] + b; aa
-        let inline fd(a, b) = DMatrix.AddItem(a, i, j, b)
+    static member AddItem (a:DNDArray, i:int, j:int, b:DNumber) =
+        let inline ff(a:ShapedDataBufferView<number>, b:number) = let aa = a.DeepCopy in aa.[i, j] <- b; aa
+        let inline fd(a, b) = DNDArray.AddItem(a, i, j, b)
         let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DMatrix.AddItem(DMatrix.ZeroMN a.Rows a.Cols, i, j, bt)
-        let inline df_dab(cp, ap, at, bp, bt) = DMatrix.AddItem(at, i, j, bt)
+        let inline df_db(cp, bp, bt) = DNDArray.AddItem(DNDArray.ZeroMN a.Rows a.Cols, i, j, bt)
+        let inline df_dab(cp, ap, at, bp, bt) = DNDArray.AddItem(at, i, j, bt)
         let inline r_d_d(a, b) = AddItem_DM_D(a, i, j, b)
         let inline r_d_c(a, b) = AddItem_DM_DCons(a)
         let inline r_c_d(a, b) = AddItem_DMCons_D(i, j, b)
-        DMatrix.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
-    /// Add submatrix `b` to matrix `a`, where the upper left corner of `b` is positioned at row `i` and column `j`
-    static member AddSubMatrix (a:DMatrix, i:int, j:int, b:DMatrix) =
-        let inline ff(a:number[,], bb:number[,]) = 
-            let aa = Array2D.copy a 
-//            Parallel.For(0, b.Rows, fun ii -> 
-//                Parallel.For(0, b.Cols, fun jj ->
-//                    aa.[i + ii, j + jj] <- aa.[i + ii, j + jj] + bb.[ii, jj]) |> ignore) |> ignore
-            for ii = 0 to b.Rows - 1 do
-                for jj = 0 to b.Cols - 1 do
-                    aa.[i + ii, j + jj] <- aa.[i + ii, j + jj] + bb.[ii, jj]
-            aa
-        let inline fd(a, b) = DMatrix.AddSubMatrix(a, i, j, b)
-        let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DMatrix.AddSubMatrix(DMatrix.ZeroMN a.Rows a.Cols, i, j, bt)
-        let inline df_dab(cp, ap, at, bp, bt) = DMatrix.AddSubMatrix(at, i, j, bt)
-        let inline r_d_d(a, b) = AddSubMatrix_DM_DM(a, i, j, b)
-        let inline r_d_c(a, b) = AddSubMatrix_DM_DMCons(a)
-        let inline r_c_d(a, b) = AddSubMatrix_DMCons_DM(i, j, b)
-        DMatrix.Op_DM_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
-
     /// Add the elements of vector `b` to the diagonal elements of matrix `a`
-    static member AddDiagonal (a:DMatrix, b:DVector) =
-        let inline ff(a:number[,], b:number[]) =
-            let aa = Array2D.copy a
-            let n = min (Array2D.length1 a) (Array2D.length2 a) |> min b.Length
+    static member AddDiagonal (a:DNDArray, b:DVector) =
+        let inline ff(a:ShapedDataBufferView<number>, b:IDataBuffer) =
+            let aa = a.DeepCopy
+            let n = min (a.Rows) (a.Cols) |> min b.Length
             for i = 0 to n - 1 do
-                aa.[i, i] <- aa.[i, i] + b.[i]
+                aa.[i, i] <- aa.[i, i] + b.SubData.[i]
             aa
-        let inline fd(a, b) = DMatrix.AddDiagonal(a, b)
+        let inline fd(a, b) = DNDArray.AddDiagonal(a, b)
         let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DMatrix.AddDiagonal(DMatrix.ZeroMN a.Rows a.Cols, bt)
-        let inline df_dab(cp, ap, at, bp, bt) = DMatrix.AddDiagonal(at, bt)
+        let inline df_db(cp, bp, bt) = DNDArray.AddDiagonal(DNDArray.ZeroMN a.Rows a.Cols, bt)
+        let inline df_dab(cp, ap, at, bp, bt) = DNDArray.AddDiagonal(at, bt)
         let inline r_d_d(a, b) = AddDiagonal_DM_DV(a, b)
         let inline r_d_c(a, b) = AddDiagonal_DM_DVCons(a)
         let inline r_c_d(a, b) = AddDiagonal_DMCons_DV(b)
-        DMatrix.Op_DM_DV_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+        DNDArray.Op_DM_DV_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
 
-    static member ReshapeToDV(a:DMatrix) =
+    static member ReshapeToDV(a:DNDArray) =
         let inline ff(a) = Backend(a).ReshapeCopy_MRows_V(a)
-        let inline fd(a) = DMatrix.ReshapeToDV(a)
-        let inline df(cp, ap, at) = DMatrix.ReshapeToDV(at)
+        let inline fd(a) = DNDArray.ReshapeToDV(a)
+        let inline df(cp, ap, at) = DNDArray.ReshapeToDV(at)
         let inline r(a) = ReshapeCopy_DM_DV(a)
-        DMatrix.Op_DM_DV (a, ff, fd, df, r)
+        DNDArray.Op_DM_DV (a, ff, fd, df, r)
 
     /// Matrix inverse of `a`
-    static member Inverse(a:DMatrix) =
+    static member Inverse(a:DNDArray) =
         let inline ff(a) = match Backend(a).Inverse_M(a) with Some(x) -> x | _ -> ErrorMessages.InvalidArgInverse()
-        let inline fd(a) = DMatrix.Inverse(a)
+        let inline fd(a) = DNDArray.Inverse(a)
         let inline df(cp, ap, at) = -cp * at * cp
         let inline r(a) = Inverse_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
     /// Determinant of matrix `a`
-    static member Det(a:DMatrix) =
+    static member Det(a:DNDArray) =
         let inline ff(a) = match Backend(a).Det_M(a) with Some(x) -> x | _ -> ErrorMessages.InvalidArgDet()
-        let inline fd(a) = DMatrix.Det(a)
-        let inline df(cp, ap, at) = cp * DMatrix.Trace(DMatrix.Inverse(ap) * at)
+        let inline fd(a) = DNDArray.Det(a)
+        let inline df(cp, ap, at) = cp * DNDArray.Trace(DNDArray.Inverse(ap) * at)
         let inline r(a) = Det_DM(a)
-        DMatrix.Op_DM_D (a, ff, fd, df, r)
+        DNDArray.Op_DM_D (a, ff, fd, df, r)
 
-    static member ReLU (a:DMatrix) =
+    static member ReLU (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(max number0, a)
-        let inline fd(a) = DMatrix.ReLU(a)
-        let inline df(cp, ap, at) = at .* ((number1 + DMatrix.Sign(ap)) / number2)
+        let inline fd(a) = DNDArray.ReLU(a)
+        let inline df(cp, ap, at) = at .* ((number1 + DNDArray.Sign(ap)) / number2)
         let inline r(a) = ReLU_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
         
-    static member Sigmoid (a:DMatrix) =
+    static member Sigmoid (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M((fun v -> number1 / (number1 + exp -v)), a)
-        let inline fd(a) = DMatrix.Sigmoid(a)
-        let inline df(cp:DMatrix, ap, at) = at .* cp .* (number1 - cp)
+        let inline fd(a) = DNDArray.Sigmoid(a)
+        let inline df(cp:DNDArray, ap, at) = at .* cp .* (number1 - cp)
         let inline r(a) = Sigmoid_DM(a)
-        DMatrix.Op_DM_DM (a, ff, fd, df, r)
+        DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
-    static member SoftPlus (a:DMatrix) = log (number1 + exp a)
-    static member SoftSign (a:DMatrix) = a ./ (number1 + abs a)
+    static member SoftPlus (a:DNDArray) = log (number1 + exp a)
+    static member SoftSign (a:DNDArray) = a ./ (number1 + abs a)
 
-    static member Mean (a:DMatrix) =
-        DMatrix.Sum(a) / a.Length
-    static member Variance (a:DMatrix) =
-        let a' = a - DMatrix.Mean(a)
-        DMatrix.Sum(a' .* a') / (a.Length - 1)
-    static member StandardDev (a:DMatrix) =
-        DMatrix.Variance(a) |> sqrt
-    static member Standardize (a:DMatrix) =
-        let sd = DMatrix.StandardDev(a)
+    static member Mean (a:DNDArray) =
+        DNDArray.Sum(a) / a.Length
+    static member Variance (a:DNDArray) =
+        let a' = a - DNDArray.Mean(a)
+        DNDArray.Sum(a' .* a') / (a.Length - 1)
+    static member StandardDev (a:DNDArray) =
+        DNDArray.Variance(a) |> sqrt
+    static member Standardize (a:DNDArray) =
+        let sd = DNDArray.StandardDev(a)
         if sd = D number0 then
             a * (D number0)
         else
-            (a - DMatrix.Mean(a)) / DMatrix.StandardDev(a)
-    static member Normalize (a:DMatrix) =
-        let min = DMatrix.Min(a)
-        let range = DMatrix.Max(a) - min
+            (a - DNDArray.Mean(a)) / DNDArray.StandardDev(a)
+    static member Normalize (a:DNDArray) =
+        let min = DNDArray.Min(a)
+        let range = DNDArray.Max(a) - min
         if range = D number0 then
             a * (D number0)
         else
             (a - min) / range
 
-    static member Max (a:DMatrix, b:DMatrix) = ((a + b) + abs (b - a)) / number2
-    static member Max (a:DMatrix, b:DNumber) = ((a + b) + abs (b - a)) / number2
-    static member Max (a:DNumber, b:DMatrix) = ((a + b) + abs (b - a)) / number2
-    static member Min (a:DMatrix, b:DMatrix) = ((a + b) - abs (a - b)) / number2
-    static member Min (a:DMatrix, b:DNumber) = ((a + b) - abs (a - b)) / number2
-    static member Min (a:DNumber, b:DMatrix) = ((a + b) - abs (a - b)) / number2
+    static member Max (a:DNDArray, b:DNDArray) = ((a + b) + abs (b - a)) / number2
+    static member Max (a:DNDArray, b:DNumber) = ((a + b) + abs (b - a)) / number2
+    static member Max (a:DNumber, b:DNDArray) = ((a + b) + abs (b - a)) / number2
+    static member Min (a:DNDArray, b:DNDArray) = ((a + b) - abs (a - b)) / number2
+    static member Min (a:DNDArray, b:DNumber) = ((a + b) - abs (a - b)) / number2
+    static member Min (a:DNumber, b:DNDArray) = ((a + b) - abs (a - b)) / number2
 
     /// Index of the maximum element of matrix `a`
-    static member MaxIndex (a:DMatrix) =
-        let a' = DMatrix.op_Explicit(a)
-        let mutable maxij = 0, 0
-        let mutable maxv = a'.[0, 0]
-        for i = 0 to a.Rows - 1 do
-            for j = 0 to a.Cols - 1 do
-                if a'.[i, j] > maxv then maxij <- (i, j); maxv <- a'.[i, j]
-        maxij
-    static member Max (a:DMatrix) = let maxij = DMatrix.MaxIndex(a) in a.[fst maxij, snd maxij]
+    static member MaxIndex (a:DNDArray) =
+        let mutable maxi = 0
+        let mutable maxv = a.FlatItem(0)
+        for i = 0 to a.Length do
+            if (a.FlatItem(i) > maxv) then 
+                do maxv <- a.FlatItem(i)
+                do maxi <- i
+        maxi
+    static member Max (a:DNDArray) = let maxi = DNDArray.MaxIndex(a) in a.FlatItem(maxi)
 
     /// Index of the minimum element of matrix `a`
-    static member MinIndex (a:DMatrix) =
-        let a' = DMatrix.op_Explicit(a)
-        let mutable minij = 0, 0
-        let mutable minv = a'.[0, 0]
-        for i = 0 to a.Rows - 1 do
-            for j = 0 to a.Cols - 1 do
-                if a'.[i, j] < minv then minij <- (i, j); minv <- a'.[i, j]
-        minij
-    static member Min (a:DMatrix) = let minij = DMatrix.MinIndex(a) in a.[fst minij, snd minij]
+    static member MinIndex (a:DNDArray) =
+        let mutable mini = 0
+        let mutable minv = a.FlatItem(0)
+        for i = 0 to a.Length do
+            if (a.FlatItem(i) < minv) then 
+                do minv <- a.FlatItem(i)
+                do mini <- i
+        mini
+    static member Min (a:DNDArray) = let mini = DNDArray.MinIndex(a) in a.FlatItem(mini)
 
     member d.Visualize() =
-        let (d':number[,]) = ((VisualizationContrast() * (DMatrix.Normalize(d.P) - number0_5)) + number0_5) |> DMatrix.op_Explicit
+        let (d':DNDArray) = (((VisualizationContrast() * (DNDArray.Normalize(d.P) - number0_5)) + number0_5))
         let sb = System.Text.StringBuilder()
         match d with
         | DM(_) -> sb.AppendLine(sprintf "DM : %i x %i" d.Rows d.Cols) |> ignore
@@ -2482,7 +2388,7 @@ and DMatrix =
         let palettelf = toNumber palettel
         for i = 0 to d.Rows - 1 do
             for j = 0 to d.Cols - 1 do
-                let c = int (d'.[i, j] * palettelf) - 1
+                let c = int ((d'.Item(i, j) * palettelf) |> toNumber) - 1
                 let c = max 0 c
                 let c = min (palettel - 1) c
                 sb.Append(palette.[c]) |> ignore
@@ -2535,8 +2441,8 @@ and TraceOp =
     | L2NormSq_DV            of DVector
     | L2Norm_DV              of DVector
     | Item_DV                of DVector * int
-    | Sum_DM                 of DMatrix
-    | Item_DM                of DMatrix * int * int
+    | Sum_DM                 of DNDArray
+    | Item_DM                of DNDArray * int * int
     | ReLU_D                 of DNumber
     | Sigmoid_D              of DNumber
     | LogSumExp_DV           of DVector
@@ -2562,12 +2468,12 @@ and TraceOp =
     | Mul_DV_D               of DVector * DNumber
     | Mul_DV_DCons           of DVector * DNumber
     | Mul_DVCons_D           of DVector * DNumber
-    | Mul_DM_DV              of DMatrix * DVector
-    | Mul_DM_DVCons          of DMatrix * DVector
-    | Mul_DMCons_DV          of DMatrix * DVector
-    | Mul_DV_DM              of DVector * DMatrix
-    | Mul_DV_DMCons          of DVector * DMatrix
-    | Mul_DVCons_DM          of DVector * DMatrix
+    | Mul_DM_DV              of DNDArray * DVector
+    | Mul_DM_DVCons          of DNDArray * DVector
+    | Mul_DMCons_DV          of DNDArray * DVector
+    | Mul_DV_DM              of DVector * DNDArray
+    | Mul_DV_DMCons          of DVector * DNDArray
+    | Mul_DVCons_DM          of DVector * DNDArray
     | Div_Had_DV_DV          of DVector * DVector
     | Div_Had_DV_DVCons      of DVector * DVector
     | Div_Had_DVCons_DV      of DVector * DVector
@@ -2615,11 +2521,11 @@ and TraceOp =
     | Ceil_DV                of DVector
     | Round_DV               of DVector
     | Make_DV_ofDs            of DNumber[]
-    | SliceRow_DM            of DMatrix * int * int
-    | SliceCol_DM            of DMatrix * int * int
-    | Solve_DM_DV            of DMatrix * DVector
-    | Solve_DM_DVCons        of DMatrix * DVector
-    | Solve_DMCons_DV        of DMatrix * DVector
+    | SliceRow_DM            of DNDArray * int * int
+    | SliceCol_DM            of DNDArray * int * int
+    | Solve_DM_DV            of DNDArray * DVector
+    | Solve_DM_DVCons        of DNDArray * DVector
+    | Solve_DMCons_DV        of DNDArray * DVector
     | Append_DV_DV           of DVector * DVector
     | Append_DV_DVCons       of DVector
     | Append_DVCons_DV       of DVector
@@ -2630,108 +2536,101 @@ and TraceOp =
     | AddSubVector_DV_DV     of DVector * int * DVector
     | AddSubVector_DV_DVCons of DVector
     | AddSubVector_DVCons_DV of int * DVector
-    | ReshapeCopy_DM_DV      of DMatrix
+    | ReshapeCopy_DM_DV      of DNDArray
     | Slice_DV               of DVector * int
-    | Diagonal_DM            of DMatrix
+    | Diagonal_DM            of DNDArray
     | ReLU_DV                of DVector
     | Sigmoid_DV             of DVector
        
     // Matrix-valued operations
-    | Add_DM_DM              of DMatrix * DMatrix
-    | Add_DM_DMCons          of DMatrix
-    | Sub_DM_DM              of DMatrix * DMatrix
-    | Sub_DM_DMCons          of DMatrix
-    | Sub_DMCons_DM          of DMatrix
-    | Mul_DM_DM              of DMatrix * DMatrix
-    | Mul_DM_DMCons          of DMatrix * DMatrix
-    | Mul_DMCons_DM          of DMatrix * DMatrix
-    | Mul_Had_DM_DM          of DMatrix * DMatrix
-    | Mul_Had_DM_DMCons      of DMatrix * DMatrix
-    | Mul_DM_D               of DMatrix * DNumber
-    | Mul_DM_DCons           of DMatrix * DNumber
-    | Mul_DMCons_D           of DMatrix * DNumber
+    | Add_DM_DM              of DNDArray * DNDArray
+    | Add_DM_DMCons          of DNDArray
+    | Sub_DM_DM              of DNDArray * DNDArray
+    | Sub_DM_DMCons          of DNDArray
+    | Sub_DMCons_DM          of DNDArray
+    | Mul_DM_DM              of DNDArray * DNDArray
+    | Mul_DM_DMCons          of DNDArray * DNDArray
+    | Mul_DMCons_DM          of DNDArray * DNDArray
+    | Mul_Had_DM_DM          of DNDArray * DNDArray
+    | Mul_Had_DM_DMCons      of DNDArray * DNDArray
+    | Mul_DM_D               of DNDArray * DNumber
+    | Mul_DM_DCons           of DNDArray * DNumber
+    | Mul_DMCons_D           of DNDArray * DNumber
     | Mul_Out_DV_DV          of DVector * DVector
     | Mul_Out_DV_DVCons      of DVector * DVector
     | Mul_Out_DVCons_DV      of DVector * DVector
-    | Div_Had_DM_DM          of DMatrix * DMatrix
-    | Div_Had_DM_DMCons      of DMatrix * DMatrix
-    | Div_Had_DMCons_DM      of DMatrix * DMatrix
-    | Pow_DM_DM              of DMatrix * DMatrix
-    | Pow_DM_DMCons          of DMatrix * DMatrix
-    | Pow_DMCons_DM          of DMatrix * DMatrix
-    | Atan2_DM_DM            of DMatrix * DMatrix
-    | Atan2_DM_DMCons        of DMatrix * DMatrix
-    | Atan2_DMCons_DM        of DMatrix * DMatrix
-    | Div_DM_D               of DMatrix * DNumber
-    | Div_DM_DCons           of DMatrix * DNumber
-    | Div_DMCons_D           of DMatrix * DNumber
-    | Div_D_DM               of DNumber * DMatrix
-    | Div_D_DMCons           of DNumber * DMatrix
-    | Div_DCons_DM           of DNumber * DMatrix
-    | Add_DM_D               of DMatrix * DNumber
-    | Add_DM_DCons           of DMatrix
+    | Div_Had_DM_DM          of DNDArray * DNDArray
+    | Div_Had_DM_DMCons      of DNDArray * DNDArray
+    | Div_Had_DMCons_DM      of DNDArray * DNDArray
+    | Pow_DM_DM              of DNDArray * DNDArray
+    | Pow_DM_DMCons          of DNDArray * DNDArray
+    | Pow_DMCons_DM          of DNDArray * DNDArray
+    | Atan2_DM_DM            of DNDArray * DNDArray
+    | Atan2_DM_DMCons        of DNDArray * DNDArray
+    | Atan2_DMCons_DM        of DNDArray * DNDArray
+    | Div_DM_D               of DNDArray * DNumber
+    | Div_DM_DCons           of DNDArray * DNumber
+    | Div_DMCons_D           of DNDArray * DNumber
+    | Div_D_DM               of DNumber * DNDArray
+    | Div_D_DMCons           of DNumber * DNDArray
+    | Div_DCons_DM           of DNumber * DNDArray
+    | Add_DM_D               of DNDArray * DNumber
+    | Add_DM_DCons           of DNDArray
     | Add_DMCons_D           of DNumber
-    | Add_DMCols_DV          of DMatrix * DVector
-    | Add_DMCols_DVCons      of DMatrix
-    | Add_DMColsCons_DV      of DVector
-    | Sub_DM_D               of DMatrix * DNumber
-    | Sub_DM_DCons           of DMatrix
+    | Sub_DM_D               of DNDArray * DNumber
+    | Sub_DM_DCons           of DNDArray
     | Sub_DMCons_D           of DNumber
-    | Sub_D_DM               of DNumber * DMatrix
+    | Sub_D_DM               of DNumber * DNDArray
     | Sub_D_DMCons           of DNumber
-    | Sub_DCons_DM           of DMatrix
-    | Pow_DM_D               of DMatrix * DNumber
-    | Pow_DM_DCons           of DMatrix * DNumber
-    | Pow_DMCons_D           of DMatrix * DNumber
-    | Pow_D_DM               of DNumber * DMatrix
-    | Pow_D_DMCons           of DNumber * DMatrix
-    | Pow_DCons_DM           of DNumber * DMatrix
-    | Atan2_DM_D             of DMatrix * DNumber
-    | Atan2_DM_DCons         of DMatrix * DNumber
-    | Atan2_DMCons_D         of DMatrix * DNumber
-    | Atan2_D_DM             of DNumber * DMatrix
-    | Atan2_D_DMCons         of DNumber * DMatrix
-    | Atan2_DCons_DM         of DNumber * DMatrix
-    | Exp_DM                 of DMatrix
-    | Log_DM                 of DMatrix
-    | Log10_DM               of DMatrix
-    | Sin_DM                 of DMatrix
-    | Cos_DM                 of DMatrix
-    | Tan_DM                 of DMatrix
-    | Neg_DM                 of DMatrix
-    | Sqrt_DM                of DMatrix
-    | Sinh_DM                of DMatrix
-    | Cosh_DM                of DMatrix
-    | Tanh_DM                of DMatrix
-    | Asin_DM                of DMatrix
-    | Acos_DM                of DMatrix
-    | Atan_DM                of DMatrix
-    | Abs_DM                 of DMatrix
-    | Sign_DM                of DMatrix
-    | Floor_DM               of DMatrix
-    | Ceil_DM                of DMatrix
-    | Round_DM               of DMatrix
-    | Transpose_DM           of DMatrix
-    | Make_DM_ofDs           of DNumber[,]
+    | Sub_DCons_DM           of DNDArray
+    | Pow_DM_D               of DNDArray * DNumber
+    | Pow_DM_DCons           of DNDArray * DNumber
+    | Pow_DMCons_D           of DNDArray * DNumber
+    | Pow_D_DM               of DNumber * DNDArray
+    | Pow_D_DMCons           of DNumber * DNDArray
+    | Pow_DCons_DM           of DNumber * DNDArray
+    | Atan2_DM_D             of DNDArray * DNumber
+    | Atan2_DM_DCons         of DNDArray * DNumber
+    | Atan2_DMCons_D         of DNDArray * DNumber
+    | Atan2_D_DM             of DNumber * DNDArray
+    | Atan2_D_DMCons         of DNumber * DNDArray
+    | Atan2_DCons_DM         of DNumber * DNDArray
+    | Exp_DM                 of DNDArray
+    | Log_DM                 of DNDArray
+    | Log10_DM               of DNDArray
+    | Sin_DM                 of DNDArray
+    | Cos_DM                 of DNDArray
+    | Tan_DM                 of DNDArray
+    | Neg_DM                 of DNDArray
+    | Sqrt_DM                of DNDArray
+    | Sinh_DM                of DNDArray
+    | Cosh_DM                of DNDArray
+    | Tanh_DM                of DNDArray
+    | Asin_DM                of DNDArray
+    | Acos_DM                of DNDArray
+    | Atan_DM                of DNDArray
+    | Abs_DM                 of DNDArray
+    | Sign_DM                of DNDArray
+    | Floor_DM               of DNDArray
+    | Ceil_DM                of DNDArray
+    | Round_DM               of DNDArray
+    | Transpose_DM           of DNDArray
+    | Make_DM_ofDs           of DNumber[]
     | Make_DMRows_ofDV       of DVector
-    | Make_DMCols_ofDV       of DVector
     | Make_DMRows_ofDVs      of DVector[]
-    | AddItem_DM_D           of DMatrix * int * int * DNumber
-    | AddItem_DM_DCons       of DMatrix
+    | AddItem_DM_D           of DNDArray * int * int * DNumber
+    | AddItem_DM_DCons       of DNDArray
     | AddItem_DMCons_D       of int * int * DNumber
-    | AddSubMatrix_DM_DM     of DMatrix * int * int * DMatrix
-    | AddSubMatrix_DM_DMCons of DMatrix
-    | AddSubMatrix_DMCons_DM of int * int * DMatrix
-    | Slice_DM               of DMatrix * int * int
+    | Slice_DM               of DNDArray * int * int
     | RowMatrix_DV           of DVector
-    | AddDiagonal_DM_DV      of DMatrix * DVector
-    | AddDiagonal_DM_DVCons  of DMatrix
+    | AddDiagonal_DM_DV      of DNDArray * DVector
+    | AddDiagonal_DM_DVCons  of DNDArray
     | AddDiagonal_DMCons_DV  of DVector
     | ReshapeCopy_DV_DM      of DVector
-    | Inverse_DM             of DMatrix
-    | Det_DM                 of DMatrix
-    | ReLU_DM                of DMatrix
-    | Sigmoid_DM             of DMatrix
+    | Inverse_DM             of DNDArray
+    | Det_DM                 of DNDArray
+    | ReLU_DM                of DNDArray
+    | Sigmoid_DM             of DNDArray
     
     | Noop
 
@@ -2745,10 +2644,6 @@ module DV =
     let inline ofArray a = DVector.OfArray(a)
     /// Converts vector `v` into an array
     let inline toArray (v:DVector) = v.ToArray()
-    /// Converts vector `v` into a row matrix
-    let inline toRowDM (v:DVector) = v.ToRowDM()
-    /// Converts vector `v` into a column matrix
-    let inline toColDM (v:DVector) = v.ToColDM()
     /// Creates a copy of vector `v`
     let inline copy (v:DVector) = v.Copy()
     /// Creates a vector with `n` elements, each with value `v`
@@ -2831,7 +2726,7 @@ module DV =
     /// Gets the unit vector codirectional with vector `v`
     let inline unitDV (v:DVector) = v / DVector.L2Norm(v)
     /// Converts matrix `m` into a vector by stacking its rows
-    let inline ofDM (m:DMatrix) = DMatrix.ReshapeToDV(m)
+    let inline ofDM (m:DNDArray) = DNDArray.ReshapeToDV(m)
     /// Creates a matrix with `m` rows from vector `v`
     let inline toDM (m:int) (v:DVector) = DVector.ReshapeToDM(m, v)
     // Experimental
@@ -2844,156 +2739,101 @@ module DV =
 [<RequireQualifiedAccess>]
 [<CompilationRepresentation (CompilationRepresentationFlags.ModuleSuffix)>]
 module DM =
-    /// Creates a matrix from 2D array `a`
-    let inline ofArray2D a = DMatrix.OfArray2D(a)
-    /// Converts matrix `m` into a 2D array
-    let inline toArray2D (m:DMatrix) = m.GetRows() |> Seq.map DV.toArray |> array2D
     /// Creates a matrix with `m` rows from array `a`
-    let inline ofArray m a = DMatrix.OfArray(m, a)
+    let inline ofArray m a = DNDArray.OfDNumberArray(m, a)
     /// Converts matrix `m` into an array by stacking its rows
-    let inline toArray (m:DMatrix) = DMatrix.ReshapeToDV(m) |> DV.toArray
+    let inline toArray (m:DNDArray) = DNDArray.ReshapeToDV(m) |> DV.toArray
     /// Transpose of matrix `m`
-    let inline transpose (m:DMatrix) = DMatrix.Transpose(m)
+    let inline transpose (m:DNDArray) = DNDArray.Transpose(m)
     /// Creates a matrix from a sequence of row vectors `s`
-    let inline ofRows s = DMatrix.OfRows(s)
+    let inline ofRows s = DNDArray.OfRows(s)
     /// Creates a matrix from a sequence of column vectors `s`
     let inline ofCols (s:seq<DVector>) = s |> ofRows |> transpose
-    /// Gets the sequence of row vectors in matrix `m`
-    let inline toRows (m:DMatrix) = m.GetRows()
-    /// Gets the sequence of column vectors in matrix `m`
-    let inline toCols (m:DMatrix) = m.GetCols()
     /// Converts matrix `m` into a vector by stacking its rows
-    let inline toDV (m:DMatrix) = DMatrix.ReshapeToDV(m)
+    let inline toDV (m:DNDArray) = DNDArray.ReshapeToDV(m)
     /// Creates a matrix with `m` rows from vector `v`
     let inline ofDV (m:int) (v:DVector) = DVector.ReshapeToDM(m, v)
-    /// Gets the column with index `j` of matrix `m`
-    let inline col (j:int) (m:DMatrix) = m.[*,j]
-    /// Gets the row with index `i` of matrix `m`
-    let inline row (i:int) (m:DMatrix) = m.[i,*]
     /// Number of columns in matrix `m`
-    let inline cols (m:DMatrix) = m.Cols
+    let inline cols (m:DNDArray) = m.Cols
     /// Number of rows in matrix `m`
-    let inline rows (m:DMatrix) = m.Rows
+    let inline rows (m:DNDArray) = m.Rows
     /// Creates a matrix with `m` rows and `n` columns, where all entries have value `v`
     let inline create m n (v:'a) = 
         let at = typeof<'a>
-        if at.Equals(typeof<DNumber>) then DMatrix.OfArray2D(Array2D.create m n (unbox<DNumber>(box v)))
-        elif at.Equals(typeof<number>) then DM (Array2D.create m n (unbox<number>(box v)))
-        elif at.Equals(typeof<int>) then DM (Array2D.create m n (unbox<int>(box v) |> toNumber))
+        if at.Equals(typeof<DNumber>) then DNDArray.OfDNumberArray(m, Array.create (m * n) (unbox<DNumber>(box v)))
+        elif at.Equals(typeof<number>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number>(box v)))
+        elif at.Equals(typeof<int>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number>(box v)))
         else fail_with_invalid_type_message ()
-    /// Creates a matrix with `m` rows, where all rows are equal to `v`
-    let inline createRows (m:int) (v:DVector) = DMatrix.OfRows(m, v)
-    /// Creates a matrix with `n` columns, where all columns are equal to `v`
-    let inline createCols (n:int) (v:DVector) = DMatrix.OfCols(n, v)
     /// Creates a matrix with `m` rows and `n` columns, where all entries are zero
-    let inline zeroCreate m n = DMatrix.ZeroMN m n
+    let inline zeroCreate m n = DNDArray.ZeroMN m n
     /// Gets the diagonal of matrix `m`
-    let inline diagonal (m:DMatrix) = DMatrix.Diagonal(m)
+    let inline diagonal (m:DNDArray) = DNDArray.Diagonal(m)
     /// Zero matrix
-    let empty = DMatrix.Zero
+    let empty = DNDArray.Zero
     /// Returns true if matrix `m` is empty, otherwise returns false
-    let isEmpty (m:DMatrix) = m.Length = 0
+    let isEmpty (m:DNDArray) = m.Length = 0
     /// Creates a matrix with `m` rows and `n` columns, where each element is given by function `f`
     let inline init m n (f:int->int->'a) = 
         let at = typeof<'a>
-        if at.Equals(typeof<DNumber>) then DMatrix.OfArray2D(Array2D.init m n (unbox<int->int->DNumber>(box f)))
-        elif at.Equals(typeof<number>) then DM (Array2D.init m n (unbox<int->int->number>(box f)))
-        elif at.Equals(typeof<int>) then DM ((Array2D.init m n (unbox<int->int->int>(box f))) |> Array2D.map toNumber)
+        let frel i = f (i / m) (i % m)
+        if at.Equals(typeof<DNumber>) then 
+            let numbers = Seq.cast<DNumber> (Array.init (m * n) frel) |> Seq.toArray
+            DNDArray.OfDNumberArray(m, numbers)
+        elif at.Equals(typeof<number>) then 
+            let numbers = Seq.cast<number> (Array.init (m * n) frel) |> Seq.toArray
+            DNDArray.OfNumberArray(m, numbers)
+        elif at.Equals(typeof<int>) then
+            let numbers = Seq.cast<number> (Array.init (m * n) frel) |> Seq.toArray
+            DNDArray.OfNumberArray(m, numbers)
         else fail_with_invalid_type_message ()
-    /// Creates a matrix with `m` rows, where each row is given by `f` as a vector
-    let inline initRows (m:int) (f:int->DVector) = Seq.init m f |> ofRows
-    /// Creates a matrix with `n` columns, where each column is given by `f` as a vector
-    let inline initCols (n:int) (f:int->DVector) = Seq.init n f |> ofCols
     /// Inverse of matrix `m`
-    let inline inverse (m:DMatrix) = DMatrix.Inverse(m)
+    let inline inverse (m:DNDArray) = DNDArray.Inverse(m)
     /// Iterates function `f` over the entries of matrix `m`
-    let inline iter (f:DNumber->unit) (m:DMatrix) = m |> toDV |> DV.iter f
+    let inline iter (f:DNumber->unit) (m:DNDArray) = m |> toDV |> DV.iter f
     /// Iterates function `f` over the entries of matrices `m1` and `m2`
-    let inline iter2 (f:DNumber->DNumber->unit) (m1:DMatrix) (m2:DMatrix) = DV.iter2 f (m1 |> toDV) (m2 |> toDV)
-    /// Iterates function `f` over the entries of matrix `m`. Indices are also supplied to `f`.
-    let inline iteri (f:int->int->DNumber->unit) (m:DMatrix) = m |> toArray2D |> Array2D.iteri f
-    /// Iterates function `f` over the columns of matrix `m`
-    let inline iterCols (f:DVector->unit) (m:DMatrix) = m |> toCols |> Seq.iter f
-    /// Iterates function `f` over the rows of matrix `m`
-    let inline iterRows (f:DVector->unit) (m:DMatrix) = m |> toRows |> Seq.iter f
-    /// Iterates function `f` over the columns of matrix `m`. Column indices are also supplied to `f`.
-    let inline iteriCols (f:int->DVector->unit) (m:DMatrix) = m |> toCols |> Seq.iteri f
-    /// Iterates function `f` over the rows of matrix `m`. Row indices are also supplied to `f`.
-    let inline iteriRows (f:int->DVector->unit) (m:DMatrix) = m |> toRows |> Seq.iteri f
-    /// Iterates function `f` over the columns of matrices `m1` and `m2`
-    let inline iter2Cols (f:DVector->DVector->unit) (m1:DMatrix) (m2:DMatrix) = Seq.iter2 f (m1 |> toCols) (m2 |> toCols)
-    /// Iterates function `f` over the rows of matrices `m1` and `m2
-    let inline iter2Rows (f:DVector->DVector->unit) (m1:DMatrix) (m2:DMatrix) = Seq.iter2 f (m1 |> toRows) (m2 |> toRows)
-    /// Iterates function `f` over the columns of matrices `m1` and `m2`. Column indices are also supplied to `f`.
-    let inline iteri2Cols (f:int->DVector->DVector->unit) (m1:DMatrix) (m2:DMatrix) = Seq.iteri2 f (m1 |> toCols) (m2 |> toCols)
-    /// Iterates function `f` over the rows of matrices `m1` and `m2`. Row indices are also supplied to `f`.
-    let inline iteri2Rows (f:int->DVector->DVector->unit) (m1:DMatrix) (m2:DMatrix) = Seq.iteri2 f (m1 |> toRows) (m2 |> toRows)
+    let inline iter2 (f:DNumber->DNumber->unit) (m1:DNDArray) (m2:DNDArray) = DV.iter2 f (m1 |> toDV) (m2 |> toDV)
     /// Total number of elements in matrix `m`
-    let inline length (m:DMatrix) = m.Length
+    let inline length (m:DNDArray) = m.Length
     /// Number of rows in matrix `m`. Same with DM.rows.
-    let inline length1 (m:DMatrix) = m.Rows
+    let inline length1 (m:DNDArray) = m.Rows
     /// Number of columns in matrix `m`. Same with DM.cols.
-    let inline length2 (m:DMatrix) = m.Cols
+    let inline length2 (m:DNDArray) = m.Cols
     /// Creates a copy of matrix `m`
-    let inline copy (m:DMatrix) = m.Copy()
+    let inline copy (m:DNDArray) = m.Copy()
     /// Determinant of matrix `m`
-    let inline det (m:DMatrix) = DMatrix.Det(m)
-    /// Maps function `f` to the columns of matrix `m`
-    let inline mapCols (f:DVector->DVector) (m:DMatrix) = m |> toCols |> Seq.map f |> ofCols
-    /// Maps function `f` to the rows of matrix `m`
-    let inline mapRows (f:DVector->DVector) (m:DMatrix) = m |> toRows |> Seq.map f |> ofRows
-    /// Maps function `f` to the columns of matrix `m`. Column indices are also supplied to `f`.
-    let inline mapiCols (f:int->DVector->DVector) (m:DMatrix) = m |> toCols |> Seq.mapi f |> ofCols
-    /// Maps function `f` to the rows of matrix `m`. Row indices are also supplied to `f`.
-    let inline mapiRows (f:int->DVector->DVector) (m:DMatrix) = m |> toRows |> Seq.mapi f |> ofRows
-    /// Maps function `f` to the columns of matrices `m1` and `m2`
-    let inline map2Cols (f:DVector->DVector->DVector) (m1:DMatrix) (m2:DMatrix) = Seq.map2 f (m1 |> toCols) (m2 |> toCols) |> ofCols
-    /// Maps function `f` to the rows of matrices `m1` and `m2`
-    let inline map2Rows (f:DVector->DVector->DVector) (m1:DMatrix) (m2:DMatrix) = Seq.map2 f (m1 |> toRows) (m2 |> toRows) |> ofRows
-    /// Maps function `f` to the columns of matrices `m1` and `m2`. Column indices are also supplied to `f`.
-    let inline mapi2Cols (f:int->DVector->DVector->DVector) (m1:DMatrix) (m2:DMatrix) = Seq.mapi2 f (m1 |> toCols) (m2 |> toCols) |> ofCols
-    /// Maps function `f` to the rows of matrices `m1` and `m2`. Row indices are also supplied to `f`.
-    let inline mapi2Rows (f:int->DVector->DVector->DVector) (m1:DMatrix) (m2:DMatrix) = Seq.mapi2 f (m1 |> toRows) (m2 |> toRows) |> ofRows
+    let inline det (m:DNDArray) = DNDArray.Det(m)
     /// Maximum of the entries of matrix `m`
-    let inline max (m:DMatrix) = DMatrix.Max(m)
+    let inline max (m:DNDArray) = DNDArray.Max(m)
     /// Index of the maximum entry of matrix `m`
-    let inline maxIndex (m:DMatrix) = DMatrix.MaxIndex(m)
+    let inline maxIndex (m:DNDArray) = DNDArray.MaxIndex(m)
     /// Minimum of the entries of matrix `m`
-    let inline min (m:DMatrix) = DMatrix.Min(m)
+    let inline min (m:DNDArray) = DNDArray.Min(m)
     /// Index of the minimum entry of matrix `m`
-    let inline minIndex (m:DMatrix) = DMatrix.MinIndex(m)
+    let inline minIndex (m:DNDArray) = DNDArray.MinIndex(m)
     /// Mean of matrix `m`
-    let inline mean (m:DMatrix) = DMatrix.Mean(m)
+    let inline mean (m:DNDArray) = DNDArray.Mean(m)
     /// Average of matrix `m`. Same with mean.
     let average = mean
     /// Standard deviation of matrix `m`
-    let inline standardDev (m:DMatrix) = DMatrix.StandardDev(m)
+    let inline standardDev (m:DNDArray) = DNDArray.StandardDev(m)
     /// Variance of matrix `m`
-    let inline variance (m:DMatrix) = DMatrix.Variance(m)
+    let inline variance (m:DNDArray) = DNDArray.Variance(m)
     /// Shift and scale the elements of matrix `m` to have zero mean and unit variance
-    let inline standardize (m:DMatrix) = DMatrix.Standardize(m)
+    let inline standardize (m:DNDArray) = DNDArray.Standardize(m)
     /// Shift and scale the elements of matrix `m` to be in the range [0, 1]
-    let inline normalize (m:DMatrix) = DMatrix.Normalize(m)
+    let inline normalize (m:DNDArray) = DNDArray.Normalize(m)
     /// Solve a system of linear equations Ax = b, where the coefficient matrix `m` has general form
-    let inline solve (m:DMatrix) (v:DVector) = DMatrix.Solve(m, v)
+    let inline solve (m:DNDArray) (v:DVector) = DNDArray.Solve(m, v)
     /// Solve a system of linear equations Ax = b, where the coefficient matrix `m` is symmetric
-    let inline solveSymmetric (m:DMatrix) (v:DVector) = DMatrix.SolveSymmetric(m, v)
+    let inline solveSymmetric (m:DNDArray) (v:DVector) = DNDArray.SolveSymmetric(m, v)
     /// Sums the elements of matrix `m`
-    let inline sum (m:DMatrix) = DMatrix.Sum(m)
+    let inline sum (m:DNDArray) = DNDArray.Sum(m)
     /// Trace of matrix `m`
-    let inline trace (m:DMatrix) = DMatrix.Trace(m)
-    /// Append row `v` to matrix `m`
-    let inline appendRow (v:DVector) (m:DMatrix) = let rows = m |> toRows in Seq.append rows (seq [v]) |> ofRows
-    /// Prepend row `v` to matrix `m`
-    let inline prependRow (v:DVector) (m:DMatrix) = let rows = m |> toRows in Seq.append (seq [v]) rows |> ofRows
-    /// Append column `v` to matrix `m`
-    let inline appendCol (v:DVector) (m:DMatrix) = let cols = m |> toCols in Seq.append cols (seq [v]) |> ofCols
-    /// Prepend column `v` to matrix `m`
-    let inline prependCol (v:DVector) (m:DMatrix) = let cols = m |> toCols in Seq.append (seq [v]) cols |> ofCols
+    let inline trace (m:DNDArray) = DNDArray.Trace(m)
     /// Experimental
-    let inline toString (m:DMatrix) = m.ToString()
-    let inline visualize (m:DMatrix) = m.Visualize()
-    let inline visualizeAsDV (m:DMatrix) = DMatrix.ReshapeToDV(m).Visualize()
+    let inline toString (m:DNDArray) = m.ToString()
+    let inline visualize (m:DNDArray) = m.Visualize()
+    let inline visualizeAsDV (m:DNDArray) = DNDArray.ReshapeToDV(m).Visualize()
 
 
 /// D, DV, DM operations (automatically opened)
@@ -3008,13 +2848,6 @@ module DOps =
             v |> Seq.toArray |> DV.ofArray
         | _ ->
             DV(DataBuffer<number>(v |> Seq.toArray |> Array.map toNumber))
-    /// Create a matrix form sequence of sequences `m`
-    let inline toDM (m:seq<seq<_>>) = 
-        match m with
-        | :? seq<seq<DNumber>> as m ->
-            m |> array2D |> DM.ofArray2D
-        | _ ->
-            m |> array2D |> Array2D.map toNumber |> DM
     /// Make forward AD type, with tag `i`, primal `p` and tangent `t`
     let inline makeForward i (t:^a) (p:^a) = 
         (^a : (member GetForward : ^a -> uint32 -> ^a) p, t, i)
@@ -3199,10 +3032,10 @@ module DOps =
                             | _ -> resetRec t
                         else resetRec t
                     | _ -> resetRec t
-                | :? DMatrix as d ->
+                | :? DNDArray as d ->
                     match d with
                     | DMR(_,_,o,_,_) ->
-                        d.A <- DMatrix.ZeroMN d.Rows d.Cols
+                        d.A <- DNDArray.ZeroMN d.Rows d.Cols
                         d.F <- d.F + 1u
                         if d.F = 1u then
                             match o with
@@ -3239,9 +3072,6 @@ module DOps =
                             | Add_DM_D(a, b) -> resetRec (box a :: box b :: t)
                             | Add_DM_DCons(a) -> resetRec (box a :: t)
                             | Add_DMCons_D(b) -> resetRec (box b :: t)
-                            | Add_DMCols_DV(a, b) -> resetRec (box a :: box b :: t)
-                            | Add_DMCols_DVCons(a) -> resetRec (box a :: t)
-                            | Add_DMColsCons_DV(b) -> resetRec (box b :: t)
                             | Sub_DM_D(a, b) -> resetRec (box a :: box b :: t)
                             | Sub_DM_DCons(a) -> resetRec (box a :: t)
                             | Sub_DMCons_D(b) -> resetRec (box b :: t)
@@ -3280,18 +3110,11 @@ module DOps =
                             | Ceil_DM(a) -> resetRec (box a :: t)
                             | Round_DM(a) -> resetRec (box a :: t)
                             | Transpose_DM(a) -> resetRec (box a :: t)
-                            | Make_DM_ofDs(a) -> resetRec (List.append (a |> Array2D.toArray |> Array.map box |> List.ofArray) t)
-                            | Make_DMRows_ofDV(a) -> resetRec (box a :: t)
-                            | Make_DMCols_ofDV(a) -> resetRec (box a :: t)
-                            | Make_DMRows_ofDVs(a) -> resetRec (List.append (a |> Array.map box |> List.ofArray) t)
+                            | Make_DM_ofDs(a) -> resetRec (List.append (a |> Array.map box |> List.ofArray) t)
                             | AddItem_DM_D(a, _, _, b) -> resetRec (box a :: box b :: t)
                             | AddItem_DM_DCons(a) -> resetRec (box a :: t)
                             | AddItem_DMCons_D(_, _, b) -> resetRec (box b :: t)
-                            | AddSubMatrix_DM_DM(a,_,_,b) -> resetRec (box a :: box b :: t)
-                            | AddSubMatrix_DM_DMCons(a) -> resetRec (box a :: t)
-                            | AddSubMatrix_DMCons_DM(_,_,b) -> resetRec (box b :: t)
                             | Slice_DM(a,_,_) -> resetRec (box a :: t)
-                            | RowMatrix_DV(a) -> resetRec (box a :: t)
                             | AddDiagonal_DM_DV(a, b) -> resetRec (box a :: box b :: t)
                             | AddDiagonal_DM_DVCons(a) -> resetRec (box a :: t)
                             | AddDiagonal_DMCons_DV(b) -> resetRec (box b :: t)
@@ -3362,8 +3185,8 @@ module DOps =
                             | L2Norm_DV(a) -> pushRec ((bx ((d.A / d.P) * a.P) a) :: t)
                             | Item_DV(a, i) -> a.A <- DVector.AddItem(a.A, i, d.A); pushRec ((bx DVector.Zero a) :: t)
                             | Sum_DM(a) -> pushRec ((bx (DM.create a.Rows a.Cols d.A) a) :: t)
-                            | Item_DM(a, i, j) -> a.A <- DMatrix.AddItem(a.A, i, j, d.A); pushRec ((bx DMatrix.Zero a) :: t)
-                            | Det_DM(a) -> pushRec ((bx (d.T * d.P * DMatrix.Transpose(DMatrix.Inverse(a))) a) :: t) // Check this
+                            | Item_DM(a, i, j) -> a.A <- DNDArray.AddItem(a.A, i, j, d.A); pushRec ((bx DNDArray.Zero a) :: t)
+                            | Det_DM(a) -> pushRec ((bx (d.T * d.P * DNDArray.Transpose(DNDArray.Inverse(a))) a) :: t) // Check this
                             | ReLU_D(a) -> pushRec ((bx (d.A * ((DNumber.Sign(a.P) + number1) / number2)) a) :: t)
                             | Sigmoid_D(a) -> pushRec ((bx (d.A * d.P * (number1 - d.P)) a) :: t) // d.P = D.Sigmoid(a.P)
                             | LogSumExp_DV(a) -> pushRec ((bx ((d.A / exp d.P) * exp a.P) a) :: t) // d.P = DV.LogSumExp(a.P)
@@ -3421,11 +3244,11 @@ module DOps =
                             | Mul_DV_D(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (d.A * a.P) b) :: t)
                             | Mul_DV_DCons(a, cons) -> pushRec ((bx (d.A * cons) a) :: t)
                             | Mul_DVCons_D(cons, b) -> pushRec ((bx (d.A * cons) b) :: t)
-                            | Mul_DM_DV(a, b) -> pushRec ((bx (d.A &* b.P) a) :: (bx (DMatrix.Transpose(a.P) * d.A) b) :: t)
+                            | Mul_DM_DV(a, b) -> pushRec ((bx (d.A &* b.P) a) :: (bx (DNDArray.Transpose(a.P) * d.A) b) :: t)
                             | Mul_DM_DVCons(a, cons) -> pushRec ((bx (d.A &* cons) a) :: t)
-                            | Mul_DMCons_DV(cons, b) -> pushRec ((bx (DMatrix.Transpose(cons) * d.A) b) :: t)
-                            | Mul_DV_DM(a, b) -> pushRec ((bx (d.A * DMatrix.Transpose(b.P)) a) :: (bx (a.P &* d.A) b) :: t)
-                            | Mul_DV_DMCons(a, cons) -> pushRec ((bx (d.A * DMatrix.Transpose(cons)) a) :: t)
+                            | Mul_DMCons_DV(cons, b) -> pushRec ((bx (DNDArray.Transpose(cons) * d.A) b) :: t)
+                            | Mul_DV_DM(a, b) -> pushRec ((bx (d.A * DNDArray.Transpose(b.P)) a) :: (bx (a.P &* d.A) b) :: t)
+                            | Mul_DV_DMCons(a, cons) -> pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
                             | Mul_DVCons_DM(cons, b) -> pushRec ((bx (cons &* d.A) b) :: t)
                             | Div_Had_DV_DV(a, b) -> pushRec ((bx (d.A ./ b.P) a) :: (bx (d.A .* (-a.P ./ (b.P .* b.P))) b) :: t)
                             | Div_Had_DV_DVCons(a, cons) -> pushRec ((bx (d.A ./ cons) a) :: t)
@@ -3474,15 +3297,9 @@ module DOps =
                             | Ceil_DV(a) -> pushRec ((bx DVector.Zero a) :: t)
                             | Round_DV(a) -> pushRec ((bx DVector.Zero a) :: t)
                             | Make_DV_ofDs(a) -> pushRec (t |> List.append (a |> Array.mapi (fun i v -> (bx d.A.[i] v)) |> List.ofArray))
-                            | SliceRow_DM(a, i, j) ->
-                                a.A <- DMatrix.AddSubMatrix(a.A, i, j, d.A.ToRowDM())
-                                pushRec ((bx DMatrix.Zero a) :: t)
-                            | SliceCol_DM(a, i, j) ->
-                                a.A <- DMatrix.AddSubMatrix(a.A, i, j, d.A.ToColDM())
-                                pushRec ((bx DMatrix.Zero a) :: t)
-                            | Solve_DM_DV(a, b) -> let ba = DMatrix.Solve(DMatrix.Transpose(a), d.A) in pushRec ((bx (-ba &* d.A) a) :: (bx (ba) b) :: t)
-                            | Solve_DM_DVCons(a, cons) -> let ba = DMatrix.Solve(DMatrix.Transpose(a), d.A) in pushRec ((bx (-ba &* d.A) a) :: t)
-                            | Solve_DMCons_DV(cons, b) -> let ba = DMatrix.Solve(DMatrix.Transpose(cons), d.A) in pushRec ((bx ba b) :: t)
+                            | Solve_DM_DV(a, b) -> let ba = DNDArray.Solve(DNDArray.Transpose(a), d.A) in pushRec ((bx (-ba &* d.A) a) :: (bx (ba) b) :: t)
+                            | Solve_DM_DVCons(a, cons) -> let ba = DNDArray.Solve(DNDArray.Transpose(a), d.A) in pushRec ((bx (-ba &* d.A) a) :: t)
+                            | Solve_DMCons_DV(cons, b) -> let ba = DNDArray.Solve(DNDArray.Transpose(cons), d.A) in pushRec ((bx ba b) :: t)
                             | Append_DV_DV(a, b) ->
                                 a.A <- a.A + d.A.[..(a.Length - 1)]
                                 b.A <- b.A + d.A.[a.Length..]
@@ -3507,17 +3324,17 @@ module DOps =
                                 a.A <- DVector.AddSubVector(a.A, i, d.A)
                                 pushRec ((bx DVector.Zero a) :: t)
                             | Diagonal_DM(a) -> 
-                                a.A <- DMatrix.AddDiagonal(a.A, d.A)
-                                pushRec ((bx DMatrix.Zero a) :: t)
+                                a.A <- DNDArray.AddDiagonal(a.A, d.A)
+                                pushRec ((bx DNDArray.Zero a) :: t)
                             | ReLU_DV(a) -> pushRec ((bx (d.A .* ((DVector.Sign(a.P) + number1) / number2)) a) :: t)
                             | Sigmoid_DV(a) -> pushRec ((bx (d.A .* d.P .* (number1 - d.P)) a) :: t) // d.P = DV.Sigmoid(a.P)
                             | _ -> pushRec t
                         else pushRec t
                     | _ -> pushRec t
-                | :? DMatrix as d ->
+                | :? DNDArray as d ->
                     match d with
                     | DMR(_,_,o,_,_) ->
-                        d.A <- d.A + (v :?> DMatrix)
+                        d.A <- d.A + (v :?> DNDArray)
                         d.F <- d.F - 1u
                         if d.F = 0u then
                             match o with
@@ -3526,17 +3343,17 @@ module DOps =
                             | Sub_DM_DM(a, b) -> pushRec ((bx d.A a) :: (bx -d.A b) :: t)
                             | Sub_DM_DMCons(a) -> pushRec ((bx d.A a) :: t)
                             | Sub_DMCons_DM(a) -> pushRec ((bx -d.A a) :: t)
-                            | Mul_DM_DM(a, b) -> pushRec ((bx (d.A * DMatrix.Transpose(b.P)) a) :: (bx (DMatrix.Transpose(a.P) * d.A) b) :: t)
-                            | Mul_DM_DMCons(a, cons) -> pushRec ((bx (d.A * DMatrix.Transpose(cons)) a) :: t)
-                            | Mul_DMCons_DM(cons, b) -> pushRec ((bx (DMatrix.Transpose(cons) * d.A) b) :: t)
+                            | Mul_DM_DM(a, b) -> pushRec ((bx (d.A * DNDArray.Transpose(b.P)) a) :: (bx (DNDArray.Transpose(a.P) * d.A) b) :: t)
+                            | Mul_DM_DMCons(a, cons) -> pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
+                            | Mul_DMCons_DM(cons, b) -> pushRec ((bx (DNDArray.Transpose(cons) * d.A) b) :: t)
                             | Mul_Had_DM_DM(a, b) -> pushRec ((bx (d.A .* b.P) a) :: (bx (d.A .* a.P) b) :: t)
                             | Mul_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons) a) :: t)
-                            | Mul_DM_D(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (DMatrix.Sum(d.A .* a.P)) b) :: t)
+                            | Mul_DM_D(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (DNDArray.Sum(d.A .* a.P)) b) :: t)
                             | Mul_DM_DCons(a, cons) -> pushRec ((bx (d.A * cons) a) :: t)
-                            | Mul_DMCons_D(cons, b) -> pushRec ((bx (DMatrix.Sum(d.A .* cons)) b) :: t)
-                            | Mul_Out_DV_DV(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (DMatrix.Transpose(d.A) * a.P) b) :: t)
+                            | Mul_DMCons_D(cons, b) -> pushRec ((bx (DNDArray.Sum(d.A .* cons)) b) :: t)
+                            | Mul_Out_DV_DV(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (DNDArray.Transpose(d.A) * a.P) b) :: t)
                             | Mul_Out_DV_DVCons(a, cons) -> pushRec ((bx (d.A * cons) a) :: t)
-                            | Mul_Out_DVCons_DV(cons, b) -> pushRec ((bx (DMatrix.Transpose(d.A) * cons) b) :: t)
+                            | Mul_Out_DVCons_DV(cons, b) -> pushRec ((bx (DNDArray.Transpose(d.A) * cons) b) :: t)
                             | Div_Had_DM_DM(a, b) -> pushRec ((bx (d.A ./ b.P) a) :: (bx (d.A .* (-a.P ./ (b.P .* b.P))) b) :: t)
                             | Div_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A ./ cons) a) :: t)
                             | Div_Had_DMCons_DM(cons, b) -> pushRec ((bx (d.A .* (-cons ./ (b.P .* b.P))) b) :: t)
@@ -3546,40 +3363,32 @@ module DOps =
                             | Atan2_DM_DM(a, b) -> let denom = (a.P .* a.P) + (b.P .* b.P) in pushRec ((bx (d.A .* b.P ./ denom) a) :: (bx (d.A .* (-a.P) ./ denom) b) :: t)
                             | Atan2_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons ./ ((a.P .* a.P) + (cons .* cons))) a) :: t)
                             | Atan2_DMCons_DM(cons, b) -> pushRec ((bx (d.A .* (-cons) ./ ((cons .* cons) + (b.P .* b.P))) b) :: t)
-                            | Add_DM_D(a, b) -> pushRec ((bx d.A a) :: (bx (DMatrix.Sum(d.A)) b) :: t)
+                            | Add_DM_D(a, b) -> pushRec ((bx d.A a) :: (bx (DNDArray.Sum(d.A)) b) :: t)
                             | Add_DM_DCons(a) -> pushRec ((bx d.A a) :: t)
-                            | Add_DMCons_D(b) -> pushRec ((bx (DMatrix.Sum(d.A)) b) :: t)
-                            | Add_DMCols_DV(a, b) ->
-                                d.A.GetCols() |> Seq.iter (fun v -> b.A <- b.A + v)
-                                pushRec ((bx d.A a) :: (bx DVector.Zero b) :: t)
-                            | Add_DMCols_DVCons(a) ->
-                                pushRec ((bx d.A a) :: t)
-                            | Add_DMColsCons_DV(b) ->
-                                d.A.GetCols() |> Seq.iter (fun v -> b.A <- b.A + v)
-                                pushRec ((bx DVector.Zero b) :: t)
-                            | Sub_DM_D(a, b) -> pushRec ((bx d.A a) :: (bx -(DMatrix.Sum(d.A)) b) :: t)
+                            | Add_DMCons_D(b) -> pushRec ((bx (DNDArray.Sum(d.A)) b) :: t)
+                            | Sub_DM_D(a, b) -> pushRec ((bx d.A a) :: (bx -(DNDArray.Sum(d.A)) b) :: t)
                             | Sub_DM_DCons(a) -> pushRec ((bx d.A a) :: t)
-                            | Sub_DMCons_D(b) -> pushRec ((bx -(DMatrix.Sum(d.A)) b) :: t)
-                            | Sub_D_DM(a, b) -> pushRec ((bx (DMatrix.Sum(d.A)) a) :: (bx -d.A b) :: t)
-                            | Sub_D_DMCons(a) -> pushRec ((bx (DMatrix.Sum(d.A)) a) :: t)
+                            | Sub_DMCons_D(b) -> pushRec ((bx -(DNDArray.Sum(d.A)) b) :: t)
+                            | Sub_D_DM(a, b) -> pushRec ((bx (DNDArray.Sum(d.A)) a) :: (bx -d.A b) :: t)
+                            | Sub_D_DMCons(a) -> pushRec ((bx (DNDArray.Sum(d.A)) a) :: t)
                             | Sub_DCons_DM(b) -> pushRec ((bx -d.A b) :: t)
                             | Div_DM_D(a, b) -> pushRec ((bx (d.A / b.P) a) :: (bx (d.A * (-a.P / (b.P * b.P))) b) :: t)
                             | Div_DM_DCons(a, cons) -> pushRec ((bx (d.A / cons) a) :: t)
                             | Div_DMCons_D(cons, b) -> pushRec ((bx (d.A * (-cons / (b.P * b.P))) b) :: t)
-                            | Div_D_DM(a, b) -> pushRec ((bx (DMatrix.Sum(d.A ./ b.P)) a) :: (bx (d.A .* (-a.P / (b.P .* b.P))) b) :: t)
-                            | Div_D_DMCons(a, cons) -> pushRec ((bx (DMatrix.Sum(d.A ./ cons)) a) :: t)
+                            | Div_D_DM(a, b) -> pushRec ((bx (DNDArray.Sum(d.A ./ b.P)) a) :: (bx (d.A .* (-a.P / (b.P .* b.P))) b) :: t)
+                            | Div_D_DMCons(a, cons) -> pushRec ((bx (DNDArray.Sum(d.A ./ cons)) a) :: t)
                             | Div_DCons_DM(cons, b) -> pushRec ((bx (d.A .* (-cons / (b.P .* b.P))) b) :: t)
-                            | Pow_DM_D(a, b) -> pushRec ((bx (d.A .* (a.P ** (b.P - D number1)) * b.P) a) :: (bx (DMatrix.Sum(d.A .* (a.P ** b.P) .* log a.P)) b) :: t)
+                            | Pow_DM_D(a, b) -> pushRec ((bx (d.A .* (a.P ** (b.P - D number1)) * b.P) a) :: (bx (DNDArray.Sum(d.A .* (a.P ** b.P) .* log a.P)) b) :: t)
                             | Pow_DM_DCons(a, cons) -> pushRec ((bx (d.A .* (a.P ** (cons - D number1)) * cons) a) :: t)
-                            | Pow_DMCons_D(cons, b) -> pushRec ((bx (DMatrix.Sum(d.A .* (cons ** b.P) .* log cons)) b) :: t)
-                            | Pow_D_DM(a, b) -> pushRec ((bx (DMatrix.Sum(d.A .* (DMatrix.Pow(a.P, b.P - D number1)) .* b.P)) a) :: (bx (d.A .* (DMatrix.Pow(a.P, b.P)) * log a.P) b) :: t)
-                            | Pow_D_DMCons(a, cons) -> pushRec ((bx (DMatrix.Sum(d.A .* (DMatrix.Pow(a.P, cons - D number1)) .* cons)) a) :: t)
-                            | Pow_DCons_DM(cons, b) -> pushRec ((bx (d.A .* (DMatrix.Pow(cons, b.P)) * log cons) b) :: t)
-                            | Atan2_DM_D(a, b) -> let denom = (a.P .* a.P) + (b.P * b.P) in pushRec ((bx (d.A * b.P ./ denom) a) :: (bx (DMatrix.Sum(d.A .* (-a.P) ./ denom)) b) :: t)
+                            | Pow_DMCons_D(cons, b) -> pushRec ((bx (DNDArray.Sum(d.A .* (cons ** b.P) .* log cons)) b) :: t)
+                            | Pow_D_DM(a, b) -> pushRec ((bx (DNDArray.Sum(d.A .* (DNDArray.Pow(a.P, b.P - D number1)) .* b.P)) a) :: (bx (d.A .* (DNDArray.Pow(a.P, b.P)) * log a.P) b) :: t)
+                            | Pow_D_DMCons(a, cons) -> pushRec ((bx (DNDArray.Sum(d.A .* (DNDArray.Pow(a.P, cons - D number1)) .* cons)) a) :: t)
+                            | Pow_DCons_DM(cons, b) -> pushRec ((bx (d.A .* (DNDArray.Pow(cons, b.P)) * log cons) b) :: t)
+                            | Atan2_DM_D(a, b) -> let denom = (a.P .* a.P) + (b.P * b.P) in pushRec ((bx (d.A * b.P ./ denom) a) :: (bx (DNDArray.Sum(d.A .* (-a.P) ./ denom)) b) :: t)
                             | Atan2_DM_DCons(a, cons) -> pushRec ((bx (d.A * cons ./ ((a.P .* a.P) + (cons * cons))) a) :: t)
-                            | Atan2_DMCons_D(cons, b) ->pushRec ((bx (DMatrix.Sum(d.A .* (-cons) ./ ((cons .* cons) + (b.P * b.P)))) b) :: t)
-                            | Atan2_D_DM(a, b) -> let denom = (a.P * a.P) + (b.P .* b.P) in pushRec ((bx (DMatrix.Sum(d.A .* b.P ./ denom)) a) :: (bx (d.A * (-a.P) ./ denom) b) :: t)
-                            | Atan2_D_DMCons(a, cons) -> pushRec ((bx (DMatrix.Sum(d.A .* cons ./ ((a.P * a.P) + (cons .* cons)))) a) :: t)
+                            | Atan2_DMCons_D(cons, b) ->pushRec ((bx (DNDArray.Sum(d.A .* (-cons) ./ ((cons .* cons) + (b.P * b.P)))) b) :: t)
+                            | Atan2_D_DM(a, b) -> let denom = (a.P * a.P) + (b.P .* b.P) in pushRec ((bx (DNDArray.Sum(d.A .* b.P ./ denom)) a) :: (bx (d.A * (-a.P) ./ denom) b) :: t)
+                            | Atan2_D_DMCons(a, cons) -> pushRec ((bx (DNDArray.Sum(d.A .* cons ./ ((a.P * a.P) + (cons .* cons)))) a) :: t)
                             | Atan2_DCons_DM(cons, b) -> pushRec ((bx (d.A * (-cons) ./ ((cons * cons) + (b.P .* b.P))) b) :: t)
                             | Log_DM(a) -> pushRec ((bx (d.A ./ a.P) a) :: t)
                             | Log10_DM(a) -> pushRec ((bx (d.A ./ (a.P * log10Val())) a) :: t)
@@ -3595,36 +3404,22 @@ module DOps =
                             | Asin_DM(a) -> pushRec ((bx (d.A ./ sqrt (D number1 - (a.P .* a.P))) a) :: t)
                             | Acos_DM(a) -> pushRec ((bx (-d.A ./ sqrt (D number1 - (a.P .* a.P))) a) :: t)
                             | Atan_DM(a) -> pushRec ((bx (d.A ./ (D number1 + (a.P .* a.P))) a) :: t)
-                            | Abs_DM(a) -> pushRec ((bx (d.A .* DMatrix.Sign a.P) a) :: t)
-                            | Sign_DM(a) -> pushRec ((bx DMatrix.Zero a) :: t)
-                            | Floor_DM(a) -> pushRec ((bx DMatrix.Zero a) :: t)
-                            | Ceil_DM(a) -> pushRec ((bx DMatrix.Zero a) :: t)
-                            | Round_DM(a) -> pushRec ((bx DMatrix.Zero a) :: t)
-                            | Transpose_DM(a) -> pushRec ((bx (DMatrix.Transpose(d.A)) a) :: t)
-                            | Make_DM_ofDs(a) -> pushRec (t |> List.append (List.map2 (fun v dd -> (bx v dd)) (d.A |> DM.toDV |> DV.toArray |> Array.toList) (a |> Array2D.toArray |> List.ofArray)))
-                            | Make_DMRows_ofDV(a) ->
-                                d.A.GetRows() |> Seq.iter (fun v -> a.A <- a.A + v)
-                                pushRec ((bx DVector.Zero a) :: t)
-                            | Make_DMCols_ofDV(a) ->
-                                d.A.GetCols() |> Seq.iter (fun v -> a.A <- a.A + v)
-                                pushRec ((bx DVector.Zero a) :: t)
-                            | Make_DMRows_ofDVs(a) -> pushRec (t |> List.append (a |> List.ofArray |> List.mapi (fun i v -> (bx d.A.[i, *] v))))
+                            | Abs_DM(a) -> pushRec ((bx (d.A .* DNDArray.Sign a.P) a) :: t)
+                            | Sign_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
+                            | Floor_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
+                            | Ceil_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
+                            | Round_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
+                            | Transpose_DM(a) -> pushRec ((bx (DNDArray.Transpose(d.A)) a) :: t)
+                            | Make_DM_ofDs(a) -> pushRec (t |> List.append (List.map2 (fun v dd -> (bx v dd)) (d.A |> DM.toDV |> DV.toArray |> Array.toList) (a |> List.ofArray)))
                             | AddItem_DM_D(a, i, j, b) -> pushRec ((bx d.A a) :: (bx (d.A.[i, j]) b) :: t)
                             | AddItem_DM_DCons(a) -> pushRec ((bx d.A a) :: t)
                             | AddItem_DMCons_D(i, j, b) -> pushRec ((bx d.A.[i, j] b) :: t)
-                            | AddSubMatrix_DM_DM(a, i, j, b) -> pushRec ((bx d.A a) :: (bx (d.A.[i..(i + b.Rows - 1), j..(j + b.Cols - 1)]) b) :: t)
-                            | AddSubMatrix_DM_DMCons(a) -> pushRec ((bx d.A a) :: t)
-                            | AddSubMatrix_DMCons_DM(i, j, b) -> pushRec ((bx (d.A.[i..(i + b.Rows - 1), j..(j + b.Cols - 1)]) b) :: t)
-                            | Slice_DM(a, i, j) ->
-                                a.A <- DMatrix.AddSubMatrix(a.A, i, j, d.A)
-                                pushRec ((bx DMatrix.Zero a) :: t)
-                            | RowMatrix_DV(a) -> pushRec ((bx (d.A.[0,*]) a) :: t)
-                            | AddDiagonal_DM_DV(a, b) -> pushRec ((bx d.A a) :: (bx (DMatrix.Diagonal(d.A)) b) :: t)
+                            | AddDiagonal_DM_DV(a, b) -> pushRec ((bx d.A a) :: (bx (DNDArray.Diagonal(d.A)) b) :: t)
                             | AddDiagonal_DM_DVCons(a) -> pushRec ((bx d.A a) :: t)
-                            | AddDiagonal_DMCons_DV(b) -> pushRec ((bx (DMatrix.Diagonal(d.A)) b) :: t)
-                            | ReshapeCopy_DV_DM(a) -> pushRec ((bx (DMatrix.ReshapeToDV(d.A)) a) :: t)
-                            | Inverse_DM(a) -> let dpt = DMatrix.Transpose(d.P) in pushRec ((bx (-dpt * d.A * dpt) a) :: t) // d.P = DM.Inverse(a.P)
-                            | ReLU_DM(a) -> pushRec ((bx (d.A .* ((DMatrix.Sign(a.P) + number1) / number2)) a) :: t)
+                            | AddDiagonal_DMCons_DV(b) -> pushRec ((bx (DNDArray.Diagonal(d.A)) b) :: t)
+                            | ReshapeCopy_DV_DM(a) -> pushRec ((bx (DNDArray.ReshapeToDV(d.A)) a) :: t)
+                            | Inverse_DM(a) -> let dpt = DNDArray.Transpose(d.P) in pushRec ((bx (-dpt * d.A * dpt) a) :: t) // d.P = DM.Inverse(a.P)
+                            | ReLU_DM(a) -> pushRec ((bx (d.A .* ((DNDArray.Sign(a.P) + number1) / number2)) a) :: t)
                             | Sigmoid_DM(a) -> pushRec ((bx (d.A .* d.P .* (number1 - d.P)) a) :: t) // d.P = DM.Sigmoid(a.P)
                             | _ -> pushRec t
                         else pushRec t

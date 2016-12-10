@@ -67,14 +67,14 @@ type GlobalConfig() =
     static let mutable C =
         let eps = 0.00001
         let fpeps = 0.01
-        {BackendConfigFloat32 = {   BackendHandle = OpenBLAS.Float32Backend()
+        {BackendConfigFloat32 = {   BackendHandle = null
                                     Epsilon = float32 eps 
                                     EpsilonRec = 1.f / (float32 eps)
                                     EpsilonRec2 = 0.5f / (float32 eps) 
                                     FixedPointEpsilon = float32 fpeps
                                     FixedPointMaxIterations = 100 
                                     VisualisationContrast = 1.2f}
-         BackendConfigFloat64 = {   BackendHandle = OpenBLAS.Float64Backend()
+         BackendConfigFloat64 = {   BackendHandle = null
                                     Epsilon = float eps 
                                     EpsilonRec = 1. / (float eps)
                                     EpsilonRec2 = 0.5 / (float eps) 
@@ -102,12 +102,7 @@ type GlobalConfig() =
     static member GrayscalePalette = C.GrayscalePalette
     static member SetDefaultBackend(backend:string) =
         match backend with
-        | "OpenBLAS" ->
-            C <- {C with
-                    BackendConfigFloat32 = { C.BackendConfigFloat32 with BackendHandle = OpenBLAS.Float32Backend() }
-                    BackendConfigFloat64 = { C.BackendConfigFloat64 with BackendHandle = OpenBLAS.Float64Backend() }
-                   }
-        | _ -> invalidArg "" "Unsupported backend. Try: OpenBLAS"
+        | _ -> invalidArg "" "FSharp backends not supported."
 
 and DefaultBackendProvider() = 
     static let float32type = typeof<float32>

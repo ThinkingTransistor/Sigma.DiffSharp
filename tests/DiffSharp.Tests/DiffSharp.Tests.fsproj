@@ -76,7 +76,6 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Tests.fs" />
-    <Compile Include="Backend.OpenBLAS.fs" />
     <Compile Include="AD.Float32.fs" />
     <None Include="Script.fsx" />
     <Content Include="packages.config" />

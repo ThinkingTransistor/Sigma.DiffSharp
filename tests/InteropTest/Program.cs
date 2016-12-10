@@ -1,4 +1,5 @@
 ﻿using System;
+using DiffSharp;
 using DiffSharp.AD;
 using static DiffSharp.Interop.Float64.AD;
 using DiffSharp.Interop.Float64;
@@ -40,35 +41,30 @@ namespace InteropTest
 
 			// Construction anDNumbercasting of DVector (vector) values
 			// Construct new DVector
-			DVector va = new DVector(new double[] { 1, 2, 3 });
+			DVector va = new DVector(new Util.DataBuffer<double>(new double[] { 1, 2, 3 }));
 			// Cast double[] to DVector
 			double[] vaa = new double[] { 1, 2, 3 };
-			DVector vb = vaa;
+			DVector vb = new Util.DataBuffer<double>(vaa);
 			// Cast DVector to double[]
-			double[] vc = vb;
 
 			Console.Write(va);
 
-			// Construction anDNumbercasting of DMatrix (matrix) values
-			// Construct new DMatrix
-			DMatrix ma = new DMatrix(new double[,] { { 1, 2 }, { 3, 4 } });
-			// Cast double[,] to DMatrix
-			double[,] maa = new double[,] { { 1, 2 }, { 3, 4 } };
-			DMatrix mb = maa;
-			// Cast DMatrix to double[,]
-			double[,] mc = mb;
+			//// Construction anDNumbercasting of DMatrix (matrix) values
+			//// Construct new DMatrix
+			//DMatrix ma = new DMatrix(new double[,] { { 1, 2 }, { 3, 4 } });
+			//// Cast double[,] to DMatrix
+			//double[,] maa = new double[,] { { 1, 2 }, { 3, 4 } };
+			//DMatrix mb = maa;
+			//// Cast DMatrix to double[,]
+			//double[,] mc = mb;
 
 			Console.ReadKey();
 		}
 	}
 
-	public class NDArray : DMatrix
+	public class NDArray : DNDArray
 	{
-		public NDArray(Float64.DMatrix m) : base(m)
-		{
-		}
-
-		public NDArray(double[,] m) : base(m)
+		public NDArray(Float64.DNDArray m) : base(m)
 		{
 		}
 	}

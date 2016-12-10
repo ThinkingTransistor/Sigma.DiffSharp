@@ -41,6 +41,7 @@
 module DiffSharp.Util
 
 open System.Threading.Tasks
+open System
 
 
 /// Gets the first term of a 3-tuple
@@ -139,7 +140,8 @@ type IDataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
     abstract member Length : int32 with get
     abstract member Offset : int32 with get
     abstract member Data : 'T[] with get
-    abstract member SubData : 'T[] with get
+
+    member d.SubData = d.Data.[d.Offset..(d.Offset + d.Length - 1)]
 
     new(data : 'T[]) = IDataBuffer(data, 0, data.Length)
 
@@ -157,7 +159,6 @@ type DataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
     override d.Length with get() = _length 
     override d.Offset with get() = _offset
     override d.Data with get() = _data
-    override d.SubData with get() = _data.[_offset..(_offset + _length - 1)]
 
     override d.GetValues startIndex length =
         DataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
@@ -167,6 +168,28 @@ type DataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
 
     override d.ToString() =
         sprintf "DataBuffer %A" d.SubData
+
+type ShapedDataBufferView<'T>(buffer : IDataBuffer<'T> , [<ParamArray>] shape : int64[]) =
+    let _buffer = buffer
+    let _shape = shape
+
+    member d.DataBuffer = _buffer
+    member d.Shape = _shape
+    member d.Cols = int32 _shape.[0]
+    member d.Rows = int32 _shape.[1]
+    member d.Length = _buffer.Length
+    member d.Item
+        with get(i : int32, j : int32) =
+            _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)]
+        and set(i : int32, j : int32) value =
+            _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)] <- value
+
+    member d.FlatItem
+        with get(i : int32) =
+            _buffer.SubData.[i]
+
+    member d.DeepCopy =
+        ShapedDataBufferView(_buffer.DeepCopy, (Array.copy shape))
 
 /// Tagger for generating incremental integers
 type Tagger =
@@ -186,32 +209,3 @@ module Array =
         let map2 f (a1:_[]) (a2:_[]) =
             let n = min a1.Length a2.Length
             Array.Parallel.init n (fun i -> f a1.[i] a2.[i])
-
-/// Extensions for the FSharp.Collections.Array2D module
-module Array2D =
-    let copyFast (array : 'T[,]) =  array.Clone() :?> 'T[,]
-    let empty<'T> = Array2D.zeroCreate<'T> 0 0
-    let isEmpty (array : 'T[,]) = (array.Length = 0)
-    let toArray (array : 'T[,]) = array |> Seq.cast<'T> |> Seq.toArray
-    let find (predicate : 'T -> bool) (array : 'T[,]) = array |> toArray |> Array.find predicate
-    let tryFind (predicate : 'T -> bool) (array : 'T[,]) = array |> toArray |> Array.tryFind predicate
-    let map2 f (a1:_[,]) (a2:_[,]) = 
-        let m = min (Array2D.length1 a1) (Array2D.length1 a2)
-        let n = min (Array2D.length2 a1) (Array2D.length2 a2)
-        Array2D.init m n (fun i j -> f a1.[i, j] a2.[i, j])
-
-    module Parallel =
-        let init m n f =
-            let a = Array2D.zeroCreate m n
-            // Nested parallel fors caused problems with mutable variables
-            //Parallel.For(0, m, fun i ->
-            //    Parallel.For(0, n, fun j -> a.[i, j] <- f i j) |> ignore) |> ignore
-            for i = 0 to m - 1 do
-                Parallel.For(0, n, fun j -> a.[i, j] <- f i j) |> ignore
-            a
-        let map f (a:_[,]) =
-            init (Array2D.length1 a) (Array2D.length2 a) (fun i j -> f a.[i, j])
-        let map2 f (a1:_[,]) (a2:_[,]) =
-            let m = min (Array2D.length1 a1) (Array2D.length1 a2)
-            let n = min (Array2D.length2 a1) (Array2D.length2 a2)
-            init m n (fun i j -> f a1.[i, j] a2.[i, j])
