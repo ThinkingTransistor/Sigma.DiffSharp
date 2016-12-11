@@ -35,7 +35,6 @@
 //
 //   www.bcl.hamilton.ie
 //
-
 namespace DiffSharp.Config
 
 open DiffSharp.Backend
@@ -47,42 +46,45 @@ type BackendConfig<'T> =
       EpsilonRec : 'T
       EpsilonRec2 : 'T
       FixedPointEpsilon : 'T
-      FixedPointMaxIterations: int
+      FixedPointMaxIterations : int
       VisualisationContrast : 'T }
 
 /// A backend provier which selects a backend based on the given object (D, DV, DM; for dynamic/multithreaded backends)
-type IBackendProvider =
-    abstract member GetBackend<'T> : obj -> BackendConfig<'T> 
+type IBackendProvider = 
+    abstract GetBackend<'T> : obj -> BackendConfig<'T>
 
 /// Record type holding configuration parameters
-type Config =
-    {BackendConfigFloat32 : BackendConfig<float32>
-     BackendConfigFloat64 : BackendConfig<float>
-     GrayscalePalette : string[]}
+type Config = 
+    { BackendConfigFloat32 : BackendConfig<float32>
+      BackendConfigFloat64 : BackendConfig<float>
+      GrayscalePalette : string [] }
 
 /// Global configuration
-type GlobalConfig() =
-    static let GrayscalePaletteUnicode = [|" "; "·"; "-"; "▴"; "▪"; "●"; "♦"; "■"; "█"|]
-    static let GrayscalePaletteASCII = [|" "; "."; ":"; "x"; "T"; "Y"; "V"; "X"; "H"; "N"; "M"|]
-    static let mutable C =
+type GlobalConfig() = 
+    static let GrayscalePaletteUnicode = [| " "; "·"; "-"; "▴"; "▪"; "●"; "♦"; "■"; "█" |]
+    static let GrayscalePaletteASCII = [| " "; "."; ":"; "x"; "T"; "Y"; "V"; "X"; "H"; "N"; "M" |]
+    
+    static let mutable C = 
         let eps = 0.00001
         let fpeps = 0.01
-        {BackendConfigFloat32 = {   BackendHandle = null
-                                    Epsilon = float32 eps 
-                                    EpsilonRec = 1.f / (float32 eps)
-                                    EpsilonRec2 = 0.5f / (float32 eps) 
-                                    FixedPointEpsilon = float32 fpeps
-                                    FixedPointMaxIterations = 100 
-                                    VisualisationContrast = 1.2f}
-         BackendConfigFloat64 = {   BackendHandle = null
-                                    Epsilon = float eps 
-                                    EpsilonRec = 1. / (float eps)
-                                    EpsilonRec2 = 0.5 / (float eps) 
-                                    FixedPointEpsilon = float fpeps
-                                    FixedPointMaxIterations = 100 
-                                    VisualisationContrast = 1.2}
-         GrayscalePalette = GrayscalePaletteASCII}
-
+        { BackendConfigFloat32 = 
+              { BackendHandle = null
+                Epsilon = float32 eps
+                EpsilonRec = 1.f / (float32 eps)
+                EpsilonRec2 = 0.5f / (float32 eps)
+                FixedPointEpsilon = float32 fpeps
+                FixedPointMaxIterations = 100
+                VisualisationContrast = 1.2f }
+          BackendConfigFloat64 = 
+              { BackendHandle = null
+                Epsilon = float eps
+                EpsilonRec = 1. / (float eps)
+                EpsilonRec2 = 0.5 / (float eps)
+                FixedPointEpsilon = float fpeps
+                FixedPointMaxIterations = 100
+                VisualisationContrast = 1.2 }
+          GrayscalePalette = GrayscalePaletteASCII }
+    
     static member BackendProvider : IBackendProvider = DefaultBackendProvider() :> IBackendProvider
     static member Float32BackendConfig = C.BackendConfigFloat32
     static member Float64BackendConfig = C.BackendConfigFloat64
@@ -100,17 +102,16 @@ type GlobalConfig() =
     static member Float32VisualizationContrast = C.BackendConfigFloat32.VisualisationContrast
     static member Float64VisualizationContrast = C.BackendConfigFloat64.VisualisationContrast
     static member GrayscalePalette = C.GrayscalePalette
-    static member SetDefaultBackend(backend:string) =
+    static member SetDefaultBackend(backend : string) = 
         match backend with
         | _ -> invalidArg "" "FSharp backends not supported."
 
 and DefaultBackendProvider() = 
     static let float32type = typeof<float32>
     static let float64type = typeof<float>
-    
     interface IBackendProvider with
-        member b.GetBackend<'T> value =
-           match typeof<'T> with
-           | x when x = float32type -> (GlobalConfig.Float64BackendConfig :> obj) :?> BackendConfig<'T>
-           | x when x = float64type -> (GlobalConfig.Float32BackendConfig :> obj) :?> BackendConfig<'T>
-           | _ -> invalidArg "" "Unsupported type, try float32 or float"
+        member b.GetBackend<'T> value = 
+            match typeof<'T> with
+            | x when x = float32type -> (GlobalConfig.Float64BackendConfig :> obj) :?> BackendConfig<'T>
+            | x when x = float64type -> (GlobalConfig.Float32BackendConfig :> obj) :?> BackendConfig<'T>
+            | _ -> invalidArg "" "Unsupported type, try float32 or float"

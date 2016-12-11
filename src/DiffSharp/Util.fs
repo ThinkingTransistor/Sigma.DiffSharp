@@ -35,14 +35,11 @@
 //
 //   www.bcl.hamilton.ie
 //
-
-
 /// Various utility functions
 module DiffSharp.Util
 
 open System.Threading.Tasks
 open System
-
 
 /// Gets the first term of a 3-tuple
 let inline fst3 (f, _, _) = f
@@ -61,51 +58,47 @@ let inline sndtrd (_, s, t) = (s, t)
 
 /// Value of log 10.
 let log10ValFloat64 = log 10.
+
 let log10ValFloat32 = log 10.f
 
 /// Computes a combined hash code for the objects in array `o`
-let inline hash (o:obj[]) =
-    Array.map (fun a -> a.GetHashCode()) o
-    |> Seq.fold (fun acc elem -> acc * 23 + elem) 17
+let inline hash (o : obj []) = Array.map (fun a -> a.GetHashCode()) o |> Seq.fold (fun acc elem -> acc * 23 + elem) 17
 
 /// Gets an array of size `n`, where the `i`-th element is 1 and the rest of the elements are zero
-let inline standardBasis (n:int) (i:int) = 
+let inline standardBasis (n : int) (i : int) = 
     let s = Array.zeroCreate n
     s.[i] <- LanguagePrimitives.GenericOne
     s
 
 /// Gets an array of size `n`, where the `i`-th element has value `v` and the rest of the elements are zero
-let inline standardBasisVal (n:int) (i:int) v = 
+let inline standardBasisVal (n : int) (i : int) v = 
     let s = Array.zeroCreate n
     s.[i] <- v
     s
 
 /// Copies the upper triangular elements of the square matrix given in the 2d array `m` to the lower triangular part
-let inline copyUpperToLower (m:_[,]) =
+let inline copyUpperToLower (m : _ [,]) = 
     if (Array2D.length1 m) <> (Array2D.length2 m) then invalidArg "" "Expecting a square matrix."
     let r = Array2D.copy m
     let rows = r.GetLength 0
-    if rows > 1 then
-        Parallel.For(1, rows, fun i ->
-            Parallel.For(0, i, fun j ->
-                r.[i, j] <- r.[j, i]) |> ignore) |> ignore
+    if rows > 1 then 
+        Parallel.For(1, rows, fun i -> Parallel.For(0, i, fun j -> r.[i, j] <- r.[j, i]) |> ignore) |> ignore
     r
-            
-let inline signummod x =
+
+let inline signummod x = 
     if x < LanguagePrimitives.GenericZero then -LanguagePrimitives.GenericOne
     elif x > LanguagePrimitives.GenericZero then LanguagePrimitives.GenericOne
     else LanguagePrimitives.GenericZero
 
-let inline signum (x:'a) = (^a : (static member Sign : ^a -> ^a) x)
-
-let inline logsumexp (x:^a) = (^a : (static member LogSumExp : ^a -> ^b) x)
-let inline softplus (x:^a) = (^a : (static member SoftPlus : ^a -> ^a) x)
-let inline softsign (x:^a) = (^a : (static member SoftSign : ^a -> ^a) x)
-let inline sigmoid (x:^a) = (^a : (static member Sigmoid : ^a -> ^a) x)
-let inline reLU (x:^a) = (^a : (static member ReLU : ^a -> ^a) x)
-let inline softmax (x:^a) = (^a : (static member SoftMax : ^a -> ^a) x)
-let inline maximum (x: ^a) (y:^b) : ^c = ((^a or ^b) : (static member Max : ^a * ^b -> ^c) x, y)
-let inline minimum (x: ^a) (y:^b) : ^c = ((^a or ^b) : (static member Min : ^a * ^b -> ^c) x, y)
+let inline signum (x : 'a) = (^a : (static member Sign : ^a -> ^a) x)
+let inline logsumexp (x : ^a) = (^a : (static member LogSumExp : ^a -> ^b) x)
+let inline softplus (x : ^a) = (^a : (static member SoftPlus : ^a -> ^a) x)
+let inline softsign (x : ^a) = (^a : (static member SoftSign : ^a -> ^a) x)
+let inline sigmoid (x : ^a) = (^a : (static member Sigmoid : ^a -> ^a) x)
+let inline reLU (x : ^a) = (^a : (static member ReLU : ^a -> ^a) x)
+let inline softmax (x : ^a) = (^a : (static member SoftMax : ^a -> ^a) x)
+let inline maximum (x : ^a) (y : ^b) : ^c = ((^a or ^b) : (static member Max : ^a * ^b -> ^c) x, y)
+let inline minimum (x : ^a) (y : ^b) : ^c = ((^a or ^b) : (static member Min : ^a * ^b -> ^c) x, y)
 
 //type System.Single with
 //    static member LogSumExp(x:float32) = x
@@ -121,98 +114,82 @@ let inline minimum (x: ^a) (y:^b) : ^c = ((^a or ^b) : (static member Min : ^a *
 //    static member Sigmoid(x) = 1. / (1. + exp -x)
 //    static member ReLU(x) = max 0. x
 
-module ErrorMessages =
+module ErrorMessages = 
     let InvalidArgDiffn() = invalidArg "" "Order of differentiation cannot be negative."
     let InvalidArgSolve() = invalidArg "" "Given system of linear equations has no solution."
     let InvalidArgCurl() = invalidArg "" "Curl is supported only for functions with a three-by-three Jacobian matrix."
     let InvalidArgDiv() = invalidArg "" "Div is defined only for functions with a square Jacobian matrix."
-    let InvalidArgCurlDiv() = invalidArg "" "Curldiv is supported only for functions with a three-by-three Jacobian matrix."
+    let InvalidArgCurlDiv() = 
+        invalidArg "" "Curldiv is supported only for functions with a three-by-three Jacobian matrix."
     let InvalidArgInverse() = invalidArg "" "Cannot compute the inverse of given matrix."
     let InvalidArgDet() = invalidArg "" "Cannot compute the determinant of given matrix."
     let InvalidArgVV() = invalidArg "" "Vectors must have same length."
-    let InvalidArgMColsMRows() = invalidArg "" "Number of colums of first matrix must match number of rows of second matrix."
+    let InvalidArgMColsMRows() = 
+        invalidArg "" "Number of colums of first matrix must match number of rows of second matrix."
     let InvalidArgMM() = invalidArg "" "Matrices must have same shape."
     let InvalidArgVMRows() = invalidArg "" "Length of vector must match number of rows of matrix."
     let InvalidArgVMCols() = invalidArg "" "Length of vector must match number of columns of matrix."
-    
+
 [<AbstractClass>]
-type IDataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
-    abstract member Length : int32 with get
-    abstract member Offset : int32 with get
-    abstract member Data : 'T[] with get
-
+type IDataBuffer<'T>(data : 'T [], length : int32, offset : int32) = 
+    abstract Length : int32
+    abstract Offset : int32
+    abstract Data : 'T []
     member d.SubData = d.Data.[d.Offset..(d.Offset + d.Length - 1)]
+    new(data : 'T []) = IDataBuffer(data, 0, data.Length)
+    abstract GetValues : int32 -> int32 -> IDataBuffer<'T>
+    abstract DeepCopy : unit -> IDataBuffer<'T>
+    abstract ShallowCopy : unit -> IDataBuffer<'T>
 
-    new(data : 'T[]) = IDataBuffer(data, 0, data.Length)
-
-    abstract member GetValues : int32 -> int32 -> IDataBuffer<'T>
-    abstract member DeepCopy : unit -> IDataBuffer<'T>
-    abstract member ShallowCopy : unit -> IDataBuffer<'T>
-
-type NativeDataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
+type NativeDataBuffer<'T>(data : 'T [], length : int32, offset : int32) = 
     inherit IDataBuffer<'T>(data, length, offset)
     let mutable _length = length
     let mutable _offset = offset
     let mutable _data = data
+    new(data : 'T []) = NativeDataBuffer<'T>(data, 0, data.Length)
+    override d.Length = _length
+    override d.Offset = _offset
+    override d.Data = _data
+    override d.GetValues startIndex length = NativeDataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
+    override d.ShallowCopy() = NativeDataBuffer<'T>(data, length, offset) :> IDataBuffer<'T>
+    override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
+    override d.ToString() = sprintf "DataBuffer %A" d.SubData
 
-    new(data : 'T[]) = NativeDataBuffer<'T>(data, 0, data.Length)
-
-    override d.Length with get() = _length 
-    override d.Offset with get() = _offset
-    override d.Data with get() = _data
-
-    override d.GetValues startIndex length =
-        NativeDataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
-
-    override d.ShallowCopy() =
-        NativeDataBuffer<'T>(data, length, offset) :> IDataBuffer<'T>
-
-    override d.DeepCopy() =
-        NativeDataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
-
-    override d.ToString() =
-        sprintf "DataBuffer %A" d.SubData
-
-type ShapedDataBufferView<'T>(buffer : IDataBuffer<'T> , [<ParamArray>] shape : int64[]) =
+type ShapedDataBufferView<'T>(buffer : IDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
     let _buffer = buffer
     let _shape = shape
-
     member d.DataBuffer = _buffer
     member d.Shape = _shape
     member d.Cols = int32 _shape.[0]
     member d.Rows = int32 _shape.[1]
     member d.Length = _buffer.Length
-    member d.Item
-        with get(i : int32, j : int32) =
-            _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)]
-        and set(i : int32, j : int32) value =
-            _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)] <- value
-
-    member d.FlatItem
-        with get(i : int32) =
-            _buffer.SubData.[i]
-
-    member d.ShallowCopy() =
-        ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy shape))
-
-    member d.DeepCopy() =
-        ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy shape))
+    
+    member d.Item 
+        with get (i : int32, j : int32) = _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)]
+        and set (i : int32, j : int32) value = _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)] <- value
+    
+    member d.FlatItem 
+        with get (i : int32) = _buffer.SubData.[i]
+    member d.ShallowCopy() = ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy shape))
+    member d.DeepCopy() = ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy shape))
 
 /// Tagger for generating incremental integers
-type Tagger =
+type Tagger = 
     val mutable LastTag : uint32
-    new(t) = {LastTag = t}
-    member t.Next() = t.LastTag <- t.LastTag + 1u; t.LastTag
+    new(t) = { LastTag = t }
+    member t.Next() = 
+        t.LastTag <- t.LastTag + 1u
+        t.LastTag
 
 /// Global tagger for nested D operations
-type GlobalTagger() =
+type GlobalTagger() = 
     static let T = new Tagger(0u)
     static member Next = T.Next()
     static member Reset = T.LastTag <- 0u
 
 /// Extensions for the FSharp.Collections.Array module
-module Array =
-    module Parallel =
-        let map2 f (a1:_[]) (a2:_[]) =
+module Array = 
+    module Parallel = 
+        let map2 f (a1 : _ []) (a2 : _ []) = 
             let n = min a1.Length a2.Length
             Array.Parallel.init n (fun i -> f a1.[i] a2.[i])
