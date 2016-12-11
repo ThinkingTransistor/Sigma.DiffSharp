@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "DiffSharp", "src\DiffSharp\DiffSharp.fsproj", "{AB5AF4D0-EC82-413D-A903-C53CE34D1CEC}"
 EndProject
@@ -29,8 +29,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{B9A8E07A-1
 		docs\input\index.fsx = docs\input\index.fsx
 	EndProjectSection
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Dsbench", "tests\Dsbench\Dsbench.fsproj", "{0577D15F-366A-4EB7-9BAF-73C42A38CA33}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InteropTest", "tests\InteropTest\InteropTest.csproj", "{73EDFD98-0114-4271-A92A-0F9735ED7425}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "DiffSharp.Tests", "tests\DiffSharp.Tests\DiffSharp.Tests.fsproj", "{89636F64-9969-474B-AA31-1FE21F8B6217}"
@@ -45,10 +43,6 @@ Global
 		{AB5AF4D0-EC82-413D-A903-C53CE34D1CEC}.Debug|x64.Build.0 = Debug|x64
 		{AB5AF4D0-EC82-413D-A903-C53CE34D1CEC}.Release|x64.ActiveCfg = Release|x64
 		{AB5AF4D0-EC82-413D-A903-C53CE34D1CEC}.Release|x64.Build.0 = Release|x64
-		{0577D15F-366A-4EB7-9BAF-73C42A38CA33}.Debug|x64.ActiveCfg = Debug|x64
-		{0577D15F-366A-4EB7-9BAF-73C42A38CA33}.Debug|x64.Build.0 = Debug|x64
-		{0577D15F-366A-4EB7-9BAF-73C42A38CA33}.Release|x64.ActiveCfg = Release|x64
-		{0577D15F-366A-4EB7-9BAF-73C42A38CA33}.Release|x64.Build.0 = Release|x64
 		{73EDFD98-0114-4271-A92A-0F9735ED7425}.Debug|x64.ActiveCfg = Debug|x64
 		{73EDFD98-0114-4271-A92A-0F9735ED7425}.Debug|x64.Build.0 = Debug|x64
 		{73EDFD98-0114-4271-A92A-0F9735ED7425}.Release|x64.ActiveCfg = Release|x64

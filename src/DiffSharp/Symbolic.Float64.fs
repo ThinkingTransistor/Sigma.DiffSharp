@@ -233,7 +233,7 @@ module DiffOps =
     let jacobianT (f:Expr) =
         let fe = expand f
         let fj = Array.map (fun a -> simplify (diffExpr a fe)) (getExprArgs fe)
-        fun x -> ShapedDataBufferView(Array.map (evalVV x) fj |> Seq.concat |> Seq.toArray |> DataBuffer<number>)
+        fun x -> ShapedDataBufferView(Array.map (evalVV x) fj |> Seq.concat |> Seq.toArray |> NativeDataBuffer<number>)
 
     /// Original value and transposed Jacobian of a vector-to-vector function `f`. Function should have multiple variables in curried form, instead of an array variable as in other parts of the library.
     let jacobianT' f =

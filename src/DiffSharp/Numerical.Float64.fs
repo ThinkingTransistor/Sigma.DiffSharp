@@ -88,8 +88,8 @@ module DiffOps =
     /// Original value and gradient of a vector-to-scalar function `f`, at point `x`
     let inline grad' (f:IDataBuffer->number) x (backend:Backend<number>) =
         let fx = f x
-        let g = DataBuffer<number>(Array.create x.Length fx)
-        let gg = DataBuffer<number>(Array.init x.Length (fun i -> f (backend.Add_V_V(x, DataBuffer<number>(standardBasisVal x.Length i (FixedPointEpsilon()))))))
+        let g = NativeDataBuffer<number>(Array.create x.Length fx)
+        let gg = NativeDataBuffer<number>(Array.init x.Length (fun i -> f (backend.Add_V_V(x, NativeDataBuffer<number>(standardBasisVal x.Length i (FixedPointEpsilon()))))))
         (fx, backend.Mul_S_V(FixedPointEpsilonRec(), backend.Sub_V_V(gg, g)))
     
     /// Gradient of a vector-to-scalar function `f`, at point `x`
@@ -99,8 +99,8 @@ module DiffOps =
     /// Original value, gradient, and Hessian of a vector-to-scalar function `f`, at point `x`
     let inline gradhessian' f x (backend:Backend<number>) =
         let (fx, g) = grad' f x backend
-        let h = ShapedDataBufferView(DataBuffer<number>((Array.create x.Length (Array.toSeq g.SubData)) |> Seq.concat |> Seq.toArray), int64 x.Length, int64 x.Length)
-        let hh = ShapedDataBufferView((Array.init x.Length (fun i -> Array.toSeq((grad f (backend.Add_V_V(x, DataBuffer<number>(standardBasisVal x.Length i (FixedPointEpsilon())))) backend).SubData))) |> Seq.concat |> Seq.toArray |> DataBuffer<number>, int64 x.Length, int64 x.Length)
+        let h = ShapedDataBufferView(NativeDataBuffer<number>((Array.create x.Length (Array.toSeq g.SubData)) |> Seq.concat |> Seq.toArray), int64 x.Length, int64 x.Length)
+        let hh = ShapedDataBufferView((Array.init x.Length (fun i -> Array.toSeq((grad f (backend.Add_V_V(x, NativeDataBuffer<number>(standardBasisVal x.Length i (FixedPointEpsilon())))) backend).SubData))) |> Seq.concat |> Seq.toArray |> NativeDataBuffer<number>, int64 x.Length, int64 x.Length)
         (fx, g, backend.Mul_S_M(FixedPointEpsilonRec(), backend.Sub_M_M(hh, h)))
 
     /// Gradient and Hessian of a vector-to-scalar function `f`, at point `x`
@@ -147,8 +147,8 @@ module DiffOps =
     /// Original value and transposed Jacobian of a vector-to-vector function `f`, at point `x`
     let inline jacobianT' (f:IDataBuffer->IDataBuffer) x (backend:Backend<number>) =
         let fx = f x
-        let j = ShapedDataBufferView<number>(DataBuffer<number>((Array.create x.Length (Array.toSeq fx.SubData)) |> Seq.concat |> Seq.toArray), int64 x.Length, int64 x.Length)
-        let jj = ShapedDataBufferView<number>(Array.init x.Length (fun i -> Array.toSeq((f (backend.Add_V_V(x, DataBuffer<number>(standardBasisVal x.Length i (FixedPointEpsilon()))))).SubData)) |> Seq.concat |> Seq.toArray |> DataBuffer<number>, int64 x.Length, int64 x.Length)
+        let j = ShapedDataBufferView<number>(NativeDataBuffer<number>((Array.create x.Length (Array.toSeq fx.SubData)) |> Seq.concat |> Seq.toArray), int64 x.Length, int64 x.Length)
+        let jj = ShapedDataBufferView<number>(Array.init x.Length (fun i -> Array.toSeq((f (backend.Add_V_V(x, NativeDataBuffer<number>(standardBasisVal x.Length i (FixedPointEpsilon()))))).SubData)) |> Seq.concat |> Seq.toArray |> NativeDataBuffer<number>, int64 x.Length, int64 x.Length)
         (fx, backend.Mul_S_M(FixedPointEpsilonRec(), backend.Sub_M_M(jj, j)))
 
     /// Transposed Jacobian of a vector-to-vector function `f`, at point `x`

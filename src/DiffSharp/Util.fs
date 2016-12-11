@@ -146,25 +146,29 @@ type IDataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
     new(data : 'T[]) = IDataBuffer(data, 0, data.Length)
 
     abstract member GetValues : int32 -> int32 -> IDataBuffer<'T>
-    abstract member DeepCopy : IDataBuffer<'T>
+    abstract member DeepCopy : unit -> IDataBuffer<'T>
+    abstract member ShallowCopy : unit -> IDataBuffer<'T>
 
-type DataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
+type NativeDataBuffer<'T>(data : 'T[], length : int32, offset : int32) =
     inherit IDataBuffer<'T>(data, length, offset)
     let mutable _length = length
     let mutable _offset = offset
     let mutable _data = data
 
-    new(data : 'T[]) = DataBuffer<'T>(data, 0, data.Length)
+    new(data : 'T[]) = NativeDataBuffer<'T>(data, 0, data.Length)
 
     override d.Length with get() = _length 
     override d.Offset with get() = _offset
     override d.Data with get() = _data
 
     override d.GetValues startIndex length =
-        DataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
+        NativeDataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
 
-    override d.DeepCopy =
-        DataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
+    override d.ShallowCopy() =
+        NativeDataBuffer<'T>(data, length, offset) :> IDataBuffer<'T>
+
+    override d.DeepCopy() =
+        NativeDataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
 
     override d.ToString() =
         sprintf "DataBuffer %A" d.SubData
@@ -188,8 +192,11 @@ type ShapedDataBufferView<'T>(buffer : IDataBuffer<'T> , [<ParamArray>] shape : 
         with get(i : int32) =
             _buffer.SubData.[i]
 
-    member d.DeepCopy =
-        ShapedDataBufferView(_buffer.DeepCopy, (Array.copy shape))
+    member d.ShallowCopy() =
+        ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy shape))
+
+    member d.DeepCopy() =
+        ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy shape))
 
 /// Tagger for generating incremental integers
 type Tagger =

@@ -43,6 +43,9 @@ open DiffSharp.Util
 /// Interface for DiffSharp backends
 [<AllowNullLiteral>]
 type Backend<'T> =
+    // Create buffer
+    abstract member CreateDataBuffer : 'T[] -> IDataBuffer<'T>
+
     // Scalar valued
     abstract member Mul_Dot_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> 'T
     abstract member L1Norm_V : (IDataBuffer<'T>) -> 'T

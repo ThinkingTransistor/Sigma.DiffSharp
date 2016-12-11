@@ -49,13 +49,13 @@ type internal ADD = DiffSharp.AD.Float64.DNumber
 
 and DNumber(x:ADD) =
     new(x:float) = DNumber(ADD.D(x))
-    member internal this.toADD() = x
+    member internal this.asADD = x
     static member internal ADDtoD (x:ADD) = new DNumber(x)
-    static member internal DtoADD (x:DNumber) = x.toADD()
+    static member internal DtoADD (x:DNumber) = x.asADD
 
-    member d.P = d.toADD().P |> DNumber.ADDtoD
-    member d.T = d.toADD().T |> DNumber.ADDtoD
-    member d.A = d.toADD().A |> DNumber.ADDtoD
+    member d.P = d.asADD.P |> DNumber.ADDtoD
+    member d.T = d.asADD.T |> DNumber.ADDtoD
+    member d.A = d.asADD.A |> DNumber.ADDtoD
 
     override d.ToString() =
         let rec s (d:ADD) =
@@ -63,28 +63,28 @@ and DNumber(x:ADD) =
             | DiffSharp.AD.Float64.D(p) -> sprintf "D %A" p
             | DiffSharp.AD.Float64.DF(p,t,_) -> sprintf "DF (%A, %A)" (s p) (s t)
             | DiffSharp.AD.Float64.DR(p,a,_,_,_) -> sprintf "DR (%A, %A)"  (s p) (s !a)
-        s (d.toADD())
-    static member op_Implicit(d:DNumber):float = float (d.toADD())
+        s (d.asADD)
+    static member op_Implicit(d:DNumber):float = float (d.asADD)
     static member op_Implicit(a:float):DNumber = DNumber(a)
     static member Zero = DNumber(0.)
     static member One = DNumber(1.)
     interface System.IComparable with
         override d.CompareTo(other) =
             match other with
-            | :? DNumber as d2 -> compare (d.toADD()) (d2.toADD())
+            | :? DNumber as d2 -> compare (d.asADD) (d2.asADD)
             | _ -> invalidArg "" "Cannot compare this D with another type of object."
     override d.Equals(other) =
         match other with
-        | :? DNumber as d2 -> compare (d.toADD()) (d2.toADD()) = 0
+        | :? DNumber as d2 -> compare (d.asADD) (d2.asADD) = 0
         | _ -> false
-    override d.GetHashCode() = d.toADD().GetHashCode()
+    override d.GetHashCode() = d.asADD.GetHashCode()
     // D - D binary operations
-    static member (+) (a:DNumber, b:DNumber) = DNumber(a.toADD() + b.toADD())
-    static member (-) (a:DNumber, b:DNumber) = DNumber(a.toADD() - b.toADD())
-    static member (*) (a:DNumber, b:DNumber) = DNumber(a.toADD() * b.toADD())
-    static member (/) (a:DNumber, b:DNumber) = DNumber(a.toADD() / b.toADD())
-    static member Pow (a:DNumber, b:DNumber) = DNumber(a.toADD() ** b.toADD())
-    static member Atan2 (a:DNumber, b:DNumber) = DNumber(atan2 (a.toADD()) (b.toADD()))
+    static member (+) (a:DNumber, b:DNumber) = DNumber(a.asADD + b.asADD)
+    static member (-) (a:DNumber, b:DNumber) = DNumber(a.asADD - b.asADD)
+    static member (*) (a:DNumber, b:DNumber) = DNumber(a.asADD * b.asADD)
+    static member (/) (a:DNumber, b:DNumber) = DNumber(a.asADD / b.asADD)
+    static member Pow (a:DNumber, b:DNumber) = DNumber(a.asADD ** b.asADD)
+    static member Atan2 (a:DNumber, b:DNumber) = DNumber(atan2 (a.asADD) (b.asADD))
     // D - float binary operations
     static member (+) (a:DNumber, b:float) = a + (DNumber b)
     static member (-) (a:DNumber, b:float) = a - (DNumber b)
@@ -114,29 +114,29 @@ and DNumber(x:ADD) =
     static member Pow (a:int, b:DNumber) = DNumber.Pow((DNumber (float a)), b)
     static member Atan2 (a:int, b:DNumber) = DNumber.Atan2((DNumber (float a)), b)
     // D unary operations
-    static member Log (a:DNumber) = DNumber(log (a.toADD()))
-    static member Log10 (a:DNumber) = DNumber(log10 (a.toADD()))
-    static member Exp (a:DNumber) = DNumber(exp (a.toADD()))
-    static member Sin (a:DNumber) = DNumber(sin (a.toADD()))
-    static member Cos (a:DNumber) = DNumber(cos (a.toADD()))
-    static member Tan (a:DNumber) = DNumber(tan (a.toADD()))
-    static member Neg (a:DNumber) = DNumber(-(a.toADD()))
-    static member Sqrt (a:DNumber) = DNumber(sqrt (a.toADD()))
-    static member Sinh (a:DNumber) = DNumber(sinh (a.toADD()))
-    static member Cosh (a:DNumber) = DNumber(cosh (a.toADD()))
-    static member Tanh (a:DNumber) = DNumber(tanh (a.toADD()))
-    static member Asin (a:DNumber) = DNumber(asin (a.toADD()))
-    static member Acos (a:DNumber) = DNumber(acos (a.toADD()))
-    static member Atan (a:DNumber) = DNumber(atan (a.toADD()))
-    static member Abs (a:DNumber) = DNumber(abs (a.toADD()))
-    static member Floor (a:DNumber) = DNumber(floor (a.toADD()))
-    static member Ceiling (a:DNumber) = DNumber(ceil (a.toADD()))
-    static member Round (a:DNumber) = DNumber(round (a.toADD()))
-    static member Sign (a:DNumber) = DNumber(ADD.Sign(a.toADD()))
-    static member SoftPlus (a:DNumber) = DNumber(ADD.SoftPlus(a.toADD()))
-    static member SoftSign (a:DNumber) = DNumber(ADD.SoftSign(a.toADD()))
-    static member Max (a:DNumber, b:DNumber) = DNumber(ADD.Max(a.toADD(), b.toADD()))
-    static member Min (a:DNumber, b:DNumber) = DNumber(ADD.Min(a.toADD(), b.toADD()))
+    static member Log (a:DNumber) = DNumber(log (a.asADD))
+    static member Log10 (a:DNumber) = DNumber(log10 (a.asADD))
+    static member Exp (a:DNumber) = DNumber(exp (a.asADD))
+    static member Sin (a:DNumber) = DNumber(sin (a.asADD))
+    static member Cos (a:DNumber) = DNumber(cos (a.asADD))
+    static member Tan (a:DNumber) = DNumber(tan (a.asADD))
+    static member Neg (a:DNumber) = DNumber(-(a.asADD))
+    static member Sqrt (a:DNumber) = DNumber(sqrt (a.asADD))
+    static member Sinh (a:DNumber) = DNumber(sinh (a.asADD))
+    static member Cosh (a:DNumber) = DNumber(cosh (a.asADD))
+    static member Tanh (a:DNumber) = DNumber(tanh (a.asADD))
+    static member Asin (a:DNumber) = DNumber(asin (a.asADD))
+    static member Acos (a:DNumber) = DNumber(acos (a.asADD))
+    static member Atan (a:DNumber) = DNumber(atan (a.asADD))
+    static member Abs (a:DNumber) = DNumber(abs (a.asADD))
+    static member Floor (a:DNumber) = DNumber(floor (a.asADD))
+    static member Ceiling (a:DNumber) = DNumber(ceil (a.asADD))
+    static member Round (a:DNumber) = DNumber(round (a.asADD))
+    static member Sign (a:DNumber) = DNumber(ADD.Sign(a.asADD))
+    static member SoftPlus (a:DNumber) = DNumber(ADD.SoftPlus(a.asADD))
+    static member SoftSign (a:DNumber) = DNumber(ADD.SoftSign(a.asADD))
+    static member Max (a:DNumber, b:DNumber) = DNumber(ADD.Max(a.asADD, b.asADD))
+    static member Min (a:DNumber, b:DNumber) = DNumber(ADD.Min(a.asADD, b.asADD))
 
 and internal ADDV = DiffSharp.AD.Float64.DVector
 
@@ -164,7 +164,7 @@ and DVector(v:ADDV) =
     member d.Visualize() = d.toADDV().Visualize()
     static member op_Implicit(d:DVector):IDataBuffer = d.toADDV().Buffer
     static member op_Implicit(a:IDataBuffer):DVector = DVector(a)
-    static member Zero = DVector(DataBuffer<number>(Array.empty<float>))
+    static member Zero = DVector(NativeDataBuffer<number>(Array.empty<float>))
     // DV - DV binary operations
     static member (+) (a:DVector, b:DVector) = DVector(a.toADDV() + b.toADDV())
     static member (-) (a:DVector, b:DVector) = DVector(a.toADDV() - b.toADDV())
@@ -175,19 +175,19 @@ and DVector(v:ADDV) =
     static member Pow (a:DVector, b:DVector) = DVector(a.toADDV() ** b.toADDV())
     static member Atan2 (a:DVector, b:DVector) = DVector(atan2 (a.toADDV()) (b.toADDV()))
     // DV - D binary operations
-    static member (+) (a:DVector, b:DNumber) = DVector(a.toADDV() + b.toADD())
-    static member (-) (a:DVector, b:DNumber) = DVector(a.toADDV() - b.toADD())
-    static member (*) (a:DVector, b:DNumber) = DVector(a.toADDV() * b.toADD())
-    static member (/) (a:DVector, b:DNumber) = DVector(a.toADDV() / b.toADD())
-    static member Pow (a:DVector, b:DNumber) = DVector(a.toADDV() ** b.toADD())
-    static member Atan2 (a:DVector, b:DNumber) = DVector(ADDV.Atan2(a.toADDV(), b.toADD()))
+    static member (+) (a:DVector, b:DNumber) = DVector(a.toADDV() + b.asADD)
+    static member (-) (a:DVector, b:DNumber) = DVector(a.toADDV() - b.asADD)
+    static member (*) (a:DVector, b:DNumber) = DVector(a.toADDV() * b.asADD)
+    static member (/) (a:DVector, b:DNumber) = DVector(a.toADDV() / b.asADD)
+    static member Pow (a:DVector, b:DNumber) = DVector(a.toADDV() ** b.asADD)
+    static member Atan2 (a:DVector, b:DNumber) = DVector(ADDV.Atan2(a.toADDV(), b.asADD))
     // D - DV binary operations
-    static member (+) (a:DNumber, b:DVector) = DVector(a.toADD() + b.toADDV())
-    static member (-) (a:DNumber, b:DVector) = DVector(a.toADD() - b.toADDV())
-    static member (*) (a:DNumber, b:DVector) = DVector(a.toADD() * b.toADDV())
-    static member (/) (a:DNumber, b:DVector) = DVector(a.toADD() / b.toADDV())
-    static member Pow (a:DNumber, b:DVector) = DVector(ADDV.Pow(a.toADD(), b.toADDV()))
-    static member Atan2 (a:DNumber, b:DVector) = DVector(ADDV.Atan2(a.toADD(), b.toADDV()))
+    static member (+) (a:DNumber, b:DVector) = DVector(a.asADD + b.toADDV())
+    static member (-) (a:DNumber, b:DVector) = DVector(a.asADD - b.toADDV())
+    static member (*) (a:DNumber, b:DVector) = DVector(a.asADD * b.toADDV())
+    static member (/) (a:DNumber, b:DVector) = DVector(a.asADD / b.toADDV())
+    static member Pow (a:DNumber, b:DVector) = DVector(ADDV.Pow(a.asADD, b.toADDV()))
+    static member Atan2 (a:DNumber, b:DVector) = DVector(ADDV.Atan2(a.asADD, b.toADDV()))
     // DV - float binary operations
     static member (+) (a:DVector, b:float) = a + (DNumber b)
     static member (-) (a:DVector, b:float) = a - (DNumber b)
@@ -259,13 +259,13 @@ and ADDND = DiffSharp.AD.Float64.DNDArray
 
 and DNDArray(m:ADDND) =
     new(data:IDataBuffer<number>, [<ParamArray>] shape : int64[]) = DNDArray(ADDND.DM(ShapedDataBufferView<number>(data, shape)))
-    member internal this.toADDM() = m
+    member internal this.asADDND = m
     static member internal ADDMtoDM (x:ADDND) = new DNDArray(x)
-    static member internal DMtoADDM (x:DNDArray) = x.toADDM()
+    static member internal DMtoADDM (x:DNDArray) = x.asADDND
 
-    member d.P = d.toADDM().P |> DNDArray.ADDMtoDM
-    member d.T = d.toADDM().T |> DNDArray.ADDMtoDM
-    member d.A = d.toADDM().A |> DNDArray.ADDMtoDM
+    member d.P = d.asADDND.P |> DNDArray.ADDMtoDM
+    member d.T = d.asADDND.T |> DNDArray.ADDMtoDM
+    member d.A = d.asADDND.A |> DNDArray.ADDMtoDM
 
     override d.ToString() =
         let rec s (d:ADDND) =
@@ -273,32 +273,32 @@ and DNDArray(m:ADDND) =
             | DiffSharp.AD.Float64.DM(p) -> sprintf "DM %A" p
             | DiffSharp.AD.Float64.DMF(p,t,_) -> sprintf "DMF (%A, %A)" (s p) (s t)
             | DiffSharp.AD.Float64.DMR(p,a,_,_,_) -> sprintf "DMR (%A, %A)" (s p) (s !a)
-        s (d.toADDM())
-    member d.Visualize() = d.toADDM().Visualize()
+        s (d.asADDND)
+    member d.Visualize() = d.asADDND.Visualize()
     static member Zero = ADDND.Zero
 
     // DV - DV binary operations
-    static member (+) (a:DNDArray, b:DNDArray) = DNDArray(a.toADDM() + b.toADDM())
-    static member (-) (a:DNDArray, b:DNDArray) = DNDArray(a.toADDM() - b.toADDM())
-    static member (*) (a:DNDArray, b:DNDArray) = DNDArray(a.toADDM() * b.toADDM())
-    static member (.*) (a:DNDArray, b:DNDArray) = DNDArray(a.toADDM() .* b.toADDM())
-    static member (./) (a:DNDArray, b:DNDArray) = DNDArray(a.toADDM() ./ b.toADDM())
-    static member Pow (a:DNDArray, b:DNDArray) = DNDArray(a.toADDM() ** b.toADDM())
-    static member Atan2 (a:DNDArray, b:DNDArray) = DNDArray(atan2 (a.toADDM()) (b.toADDM()))
+    static member (+) (a:DNDArray, b:DNDArray) = DNDArray(a.asADDND + b.asADDND)
+    static member (-) (a:DNDArray, b:DNDArray) = DNDArray(a.asADDND - b.asADDND)
+    static member (*) (a:DNDArray, b:DNDArray) = DNDArray(a.asADDND * b.asADDND)
+    static member (.*) (a:DNDArray, b:DNDArray) = DNDArray(a.asADDND .* b.asADDND)
+    static member (./) (a:DNDArray, b:DNDArray) = DNDArray(a.asADDND ./ b.asADDND)
+    static member Pow (a:DNDArray, b:DNDArray) = DNDArray(a.asADDND ** b.asADDND)
+    static member Atan2 (a:DNDArray, b:DNDArray) = DNDArray(atan2 (a.asADDND) (b.asADDND))
     // DV - D binary operations
-    static member (+) (a:DNDArray, b:DNumber) = DNDArray(a.toADDM() + b.toADD())
-    static member (-) (a:DNDArray, b:DNumber) = DNDArray(a.toADDM() - b.toADD())
-    static member (*) (a:DNDArray, b:DNumber) = DNDArray(a.toADDM() * b.toADD())
-    static member (/) (a:DNDArray, b:DNumber) = DNDArray(a.toADDM() / b.toADD())
-    static member Pow (a:DNDArray, b:DNumber) = DNDArray(a.toADDM() ** b.toADD())
-    static member Atan2 (a:DNDArray, b:DNumber) = DNDArray(ADDND.Atan2(a.toADDM(), b.toADD()))
+    static member (+) (a:DNDArray, b:DNumber) = DNDArray(a.asADDND + b.asADD)
+    static member (-) (a:DNDArray, b:DNumber) = DNDArray(a.asADDND - b.asADD)
+    static member (*) (a:DNDArray, b:DNumber) = DNDArray(a.asADDND * b.asADD)
+    static member (/) (a:DNDArray, b:DNumber) = DNDArray(a.asADDND / b.asADD)
+    static member Pow (a:DNDArray, b:DNumber) = DNDArray(a.asADDND ** b.asADD)
+    static member Atan2 (a:DNDArray, b:DNumber) = DNDArray(ADDND.Atan2(a.asADDND, b.asADD))
     // D - DV binary operations
-    static member (+) (a:DNumber, b:DNDArray) = DNDArray(a.toADD() + b.toADDM())
-    static member (-) (a:DNumber, b:DNDArray) = DNDArray(a.toADD() - b.toADDM())
-    static member (*) (a:DNumber, b:DNDArray) = DNDArray(a.toADD() * b.toADDM())
-    static member (/) (a:DNumber, b:DNDArray) = DNDArray(a.toADD() / b.toADDM())
-    static member Pow (a:DNumber, b:DNDArray) = DNDArray(ADDND.Pow(a.toADD(), b.toADDM()))
-    static member Atan2 (a:DNumber, b:DNDArray) = DNDArray(ADDND.Atan2(a.toADD(), b.toADDM()))
+    static member (+) (a:DNumber, b:DNDArray) = DNDArray(a.asADD + b.asADDND)
+    static member (-) (a:DNumber, b:DNDArray) = DNDArray(a.asADD - b.asADDND)
+    static member (*) (a:DNumber, b:DNDArray) = DNDArray(a.asADD * b.asADDND)
+    static member (/) (a:DNumber, b:DNDArray) = DNDArray(a.asADD / b.asADDND)
+    static member Pow (a:DNumber, b:DNDArray) = DNDArray(ADDND.Pow(a.asADD, b.asADDND))
+    static member Atan2 (a:DNumber, b:DNDArray) = DNDArray(ADDND.Atan2(a.asADD, b.asADDND))
     // DV - float binary operations
     static member (+) (a:DNDArray, b:float) = a + (DNumber b)
     static member (-) (a:DNDArray, b:float) = a - (DNumber b)
@@ -328,50 +328,50 @@ and DNDArray(m:ADDND) =
     static member Pow (a:int, b:DNDArray) = DNDArray.Pow((DNumber (float a)), b)
     static member Atan2 (a:int, b:DNDArray) = DNDArray.Atan2((DNumber (float a)), b)
     // DV unary operations
-    static member Log (a:DNDArray) = DNDArray(log (a.toADDM()))
-    static member Log10 (a:DNDArray) = DNDArray(log10 (a.toADDM()))
-    static member Exp (a:DNDArray) = DNDArray(exp (a.toADDM()))
-    static member Sin (a:DNDArray) = DNDArray(sin (a.toADDM()))
-    static member Cos (a:DNDArray) = DNDArray(cos (a.toADDM()))
-    static member Tan (a:DNDArray) = DNDArray(tan (a.toADDM()))
-    static member Neg (a:DNDArray) = DNDArray(-(a.toADDM()))
-    static member Sqrt (a:DNDArray) = DNDArray(sqrt (a.toADDM()))
-    static member Sinh (a:DNDArray) = DNDArray(sinh (a.toADDM()))
-    static member Cosh (a:DNDArray) = DNDArray(cosh (a.toADDM()))
-    static member Tanh (a:DNDArray) = DNDArray(tanh (a.toADDM()))
-    static member Asin (a:DNDArray) = DNDArray(asin (a.toADDM()))
-    static member Acos (a:DNDArray) = DNDArray(acos (a.toADDM()))
-    static member Atan (a:DNDArray) = DNDArray(atan (a.toADDM()))
-    static member Abs (a:DNDArray) = DNDArray(abs (a.toADDM()))
-    static member Floor (a:DNDArray) = DNDArray(floor (a.toADDM()))
-    static member Ceiling (a:DNDArray) = DNDArray(ceil (a.toADDM()))
-    static member Round (a:DNDArray) = DNDArray(round (a.toADDM()))
-    static member Sign (a:DNDArray) = DNDArray(ADDND.Sign(a.toADDM()))
-    static member Sum (a:DNDArray) = DNumber(ADDND.Sum(a.toADDM()))
-    static member Transpose (a:DNDArray) = DNDArray(ADDND.Transpose(a.toADDM()))
-    static member Diagonal (a:DNDArray) = DVector(ADDND.Diagonal(a.toADDM()))
-    static member Trace (a:DNDArray) = DNumber(ADDND.Trace(a.toADDM()))
-    static member Solve (a:DNDArray, b:DVector) = DVector(ADDND.Solve(a.toADDM(), b.toADDV()))
-    static member SolveSymmetric (a:DNDArray, b:DVector) = DVector(ADDND.SolveSymmetric(a.toADDM(), b.toADDV()))
-    static member Inverse (a:DNDArray) = DNDArray(ADDND.Inverse(a.toADDM()))
-    static member Det (a:DNDArray) = DNumber(ADDND.Det(a.toADDM()))
-    static member ReLU (a:DNDArray) = DNDArray(ADDND.ReLU(a.toADDM()))
-    static member Sigmoid (a:DNDArray) = DNDArray(ADDND.Sigmoid(a.toADDM()))
-    static member SoftPlus (a:DNDArray) = DNDArray(ADDND.SoftPlus(a.toADDM()))
-    static member SoftSign (a:DNDArray) = DNDArray(ADDND.SoftSign(a.toADDM()))
-    static member Max (a:DNDArray, b:DNDArray) = DNDArray(ADDND.Max(a.toADDM(), b.toADDM()))
-    static member Min (a:DNDArray, b:DNDArray) = DNDArray(ADDND.Min(a.toADDM(), b.toADDM()))
-    static member Max (a:DNDArray, b:DNumber) = DNDArray(ADDND.Max(a.toADDM(), b.toADD()))
-    static member Max (a:DNumber, b:DNDArray) = DNDArray(ADDND.Max(a.toADD(), b.toADDM()))
-    static member Min (a:DNDArray, b:DNumber) = DNDArray(ADDND.Min(a.toADDM(), b.toADD()))
-    static member Min (a:DNumber, b:DNDArray) = DNDArray(ADDND.Min(a.toADD(), b.toADDM()))
-    static member MaxIndex (a:DNDArray) = ADDND.MaxIndex(a.toADDM())
-    static member MinIndex (a:DNDArray) = ADDND.MinIndex(a.toADDM())
-    static member Mean (a:DNDArray) = DNumber(ADDND.Mean(a.toADDM()))
-    static member StandardDev (a:DNDArray) = DNumber(ADDND.StandardDev(a.toADDM()))
-    static member Variance (a:DNDArray) = DNumber(ADDND.Variance(a.toADDM()))
-    static member Normalize (a:DNDArray) = DNDArray(ADDND.Normalize(a.toADDM()))
-    static member Standardize (a:DNDArray) = DNDArray(ADDND.Standardize(a.toADDM()))
+    static member Log (a:DNDArray) = DNDArray(log (a.asADDND))
+    static member Log10 (a:DNDArray) = DNDArray(log10 (a.asADDND))
+    static member Exp (a:DNDArray) = DNDArray(exp (a.asADDND))
+    static member Sin (a:DNDArray) = DNDArray(sin (a.asADDND))
+    static member Cos (a:DNDArray) = DNDArray(cos (a.asADDND))
+    static member Tan (a:DNDArray) = DNDArray(tan (a.asADDND))
+    static member Neg (a:DNDArray) = DNDArray(-(a.asADDND))
+    static member Sqrt (a:DNDArray) = DNDArray(sqrt (a.asADDND))
+    static member Sinh (a:DNDArray) = DNDArray(sinh (a.asADDND))
+    static member Cosh (a:DNDArray) = DNDArray(cosh (a.asADDND))
+    static member Tanh (a:DNDArray) = DNDArray(tanh (a.asADDND))
+    static member Asin (a:DNDArray) = DNDArray(asin (a.asADDND))
+    static member Acos (a:DNDArray) = DNDArray(acos (a.asADDND))
+    static member Atan (a:DNDArray) = DNDArray(atan (a.asADDND))
+    static member Abs (a:DNDArray) = DNDArray(abs (a.asADDND))
+    static member Floor (a:DNDArray) = DNDArray(floor (a.asADDND))
+    static member Ceiling (a:DNDArray) = DNDArray(ceil (a.asADDND))
+    static member Round (a:DNDArray) = DNDArray(round (a.asADDND))
+    static member Sign (a:DNDArray) = DNDArray(ADDND.Sign(a.asADDND))
+    static member Sum (a:DNDArray) = DNumber(ADDND.Sum(a.asADDND))
+    static member Transpose (a:DNDArray) = DNDArray(ADDND.Transpose(a.asADDND))
+    static member Diagonal (a:DNDArray) = DVector(ADDND.Diagonal(a.asADDND))
+    static member Trace (a:DNDArray) = DNumber(ADDND.Trace(a.asADDND))
+    static member Solve (a:DNDArray, b:DVector) = DVector(ADDND.Solve(a.asADDND, b.toADDV()))
+//    static member SolveSymmetric (a:DNDArray, b:DVector) = DVector(ADDND.SolveSymmetric(a.asADDND, b.toADDV()))
+    static member Inverse (a:DNDArray) = DNDArray(ADDND.Inverse(a.asADDND))
+    static member Det (a:DNDArray) = DNumber(ADDND.Det(a.asADDND))
+    static member ReLU (a:DNDArray) = DNDArray(ADDND.ReLU(a.asADDND))
+    static member Sigmoid (a:DNDArray) = DNDArray(ADDND.Sigmoid(a.asADDND))
+    static member SoftPlus (a:DNDArray) = DNDArray(ADDND.SoftPlus(a.asADDND))
+    static member SoftSign (a:DNDArray) = DNDArray(ADDND.SoftSign(a.asADDND))
+    static member Max (a:DNDArray, b:DNDArray) = DNDArray(ADDND.Max(a.asADDND, b.asADDND))
+    static member Min (a:DNDArray, b:DNDArray) = DNDArray(ADDND.Min(a.asADDND, b.asADDND))
+    static member Max (a:DNDArray, b:DNumber) = DNDArray(ADDND.Max(a.asADDND, b.asADD))
+    static member Max (a:DNumber, b:DNDArray) = DNDArray(ADDND.Max(a.asADD, b.asADDND))
+    static member Min (a:DNDArray, b:DNumber) = DNDArray(ADDND.Min(a.asADDND, b.asADD))
+    static member Min (a:DNumber, b:DNDArray) = DNDArray(ADDND.Min(a.asADD, b.asADDND))
+    static member MaxIndex (a:DNDArray) = ADDND.MaxIndex(a.asADDND)
+    static member MinIndex (a:DNDArray) = ADDND.MinIndex(a.asADDND)
+    static member Mean (a:DNDArray) = DNumber(ADDND.Mean(a.asADDND))
+    static member StandardDev (a:DNDArray) = DNumber(ADDND.StandardDev(a.asADDND))
+    static member Variance (a:DNDArray) = DNumber(ADDND.Variance(a.asADDND))
+    static member Normalize (a:DNDArray) = DNDArray(ADDND.Normalize(a.asADDND))
+    static member Standardize (a:DNDArray) = DNDArray(ADDND.Standardize(a.asADDND))
 
 /// Nested forward and reverse mode automatic differentiation module
 type AD =
@@ -482,13 +482,13 @@ type AD =
     static member L2Norm(a:DVector) = DNumber(ADDV.L2Norm(a.toADDV()))
     static member L2NormSq(a:DVector) = DNumber(ADDV.L2NormSq(a.toADDV()))
     static member Sum(a:DVector) = DNumber(ADDV.Sum(a.toADDV()))
-    static member Sum(a:DNDArray) = DNumber(ADDND.Sum(a.toADDM()))
-    static member Transpose (a:DNDArray) = DNDArray(ADDND.Transpose(a.toADDM()))
-    static member Diagonal (a:DNDArray) = DVector(ADDND.Diagonal(a.toADDM()))
-    static member Trace (a:DNDArray) = DNumber(ADDND.Trace(a.toADDM()))
-    static member Solve (a:DNDArray, b:DVector) = DVector(ADDND.Solve(a.toADDM(), b.toADDV()))
-    static member SolveSymmetric (a:DNDArray, b:DVector) = DVector(ADDND.SolveSymmetric(a.toADDM(), b.toADDV()))
-    static member Inverse (a:DNDArray) = DNDArray(ADDND.Inverse(a.toADDM()))
+    static member Sum(a:DNDArray) = DNumber(ADDND.Sum(a.asADDND))
+    static member Transpose (a:DNDArray) = DNDArray(ADDND.Transpose(a.asADDND))
+    static member Diagonal (a:DNDArray) = DVector(ADDND.Diagonal(a.asADDND))
+    static member Trace (a:DNDArray) = DNumber(ADDND.Trace(a.asADDND))
+    static member Solve (a:DNDArray, b:DVector) = DVector(ADDND.Solve(a.asADDND, b.toADDV()))
+    static member SolveSymmetric (a:DNDArray, b:DVector) = DVector(ADDND.SolveSymmetric(a.asADDND, b.toADDV()))
+    static member Inverse (a:DNDArray) = DNDArray(ADDND.Inverse(a.asADDND))
 
 
 /// Numerical differentiation module

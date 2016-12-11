@@ -6,7 +6,7 @@ using DiffSharp.Interop.Float64;
 
 namespace InteropTest
 {
-	public class Program
+	public static class Program
 	{
 		// Define a function whose derivative you need
 		// F(x) = Sin(x^2 - Exp(x))
@@ -41,10 +41,10 @@ namespace InteropTest
 
 			// Construction anDNumbercasting of DVector (vector) values
 			// Construct new DVector
-			DVector va = new DVector(new Util.DataBuffer<double>(new double[] { 1, 2, 3 }));
+			DVector va = new DVector(new Util.NativeDataBuffer<double>(new double[] { 1, 2, 3 }));
 			// Cast double[] to DVector
-			double[] vaa = new double[] { 1, 2, 3 };
-			DVector vb = new Util.DataBuffer<double>(vaa);
+			double[] vaa = { 1, 2, 3 };
+			DVector vb = new Util.NativeDataBuffer<double>(vaa);
 			// Cast DVector to double[]
 
 			Console.Write(va);

@@ -43,6 +43,7 @@ module DiffSharp.AD.Float64
 
 open DiffSharp.Util
 open DiffSharp.Config
+open DiffSharp.Backend
 open System.Threading.Tasks
 
 let inline toNumber x = float x
@@ -535,11 +536,16 @@ and DVector =
 
     member d.GetForward(t:DVector, i:uint32) = DVF(d, t, i)
     member d.GetReverse(i:uint32) = DVR(d, ref (DVector.ZeroN d.Length), Noop, ref 0u, i)
-    member d.Copy() =
+    member d.ShallowCopy() =
         match d with
-        | DV(ap) -> DV(ap.DeepCopy)
-        | DVF(ap,at,ai) -> DVF(ap.Copy(), at.Copy(), ai)
-        | DVR(ap,aa,at,af,ai) -> DVR(ap.Copy(), ref ((!aa).Copy()), at, ref (!af), ai)
+        | DV(ap) -> DV(ap.ShallowCopy())
+        | DVF(ap,at,ai) -> DVF(ap.ShallowCopy(), at.ShallowCopy(), ai)
+        | DVR(ap,aa,at,af,ai) -> DVR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+    member d.DeepCopy() =
+        match d with
+        | DV(ap) -> DV(ap.DeepCopy())
+        | DVF(ap,at,ai) -> DVF(ap.DeepCopy(), at.DeepCopy(), ai)
+        | DVR(ap,aa,at,af,ai) -> DVR(ap.DeepCopy(), ref ((!aa).DeepCopy()), at, ref (!af), ai)
     member d.Length =
         match d with
         | DV(ap) -> ap.Length
@@ -556,7 +562,7 @@ and DVector =
         match d with
         | DV(ap) -> DNDArray.OfNumberArray(1, seq [ap.SubData] |> Seq.concat |> Seq.toArray)
         | DVF(ap,at,ai) -> DMF(ap.ToRowDM(), at.ToRowDM(), ai)
-        | DVR(ap,_,_,_,ai) -> let cp = ap.ToRowDM() in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), RowMatrix_DV(d), ref 0u, ai)
+        | DVR(ap,_,_,_,ai) -> let cp = ap.ToRowDM() in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), RowMatrix_DV(d), ref 0u, ai)
     member d.ToColDM() = DNDArray.Transpose(d.ToRowDM())
 
     member d.GetSlice(lower, upper) =
@@ -603,8 +609,8 @@ and DVector =
             if i < d.Length - 1 then sb.Append(" ") |> ignore
         sb.Append("]") |> ignore
         sb.ToString()
-    static member Zero = DV(new DataBuffer<number>(Array.empty))
-    static member ZeroN n = DV(new DataBuffer<number>((Array.zeroCreate n)))        
+    static member Zero = DV(new NativeDataBuffer<number>(Array.empty))
+    static member ZeroN n = DV(new NativeDataBuffer<number>((Array.zeroCreate n)))        
     static member op_Explicit(d:DVector):number[] =
         let rec prec x =
             match x with
@@ -617,7 +623,7 @@ and DVector =
     static member OfArray (a:DNumber[]) =
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
         match a.[0] with
-        | D(_) -> DV(new DataBuffer<number>(a |> Array.map toNumber))
+        | D(_) -> DV(Backend(a.[0]).CreateDataBuffer(a |> Array.map toNumber))
         | DF(_,_,ai) ->
             let ap = a |> Array.map (fun x -> x.P)
             let at = a |> Array.map (fun x -> x.T)
@@ -629,7 +635,7 @@ and DVector =
         match d with
         | DV(ap) ->
             seq {let i = ref 0; 
-                 for j in n do yield DV(new DataBuffer<number>(Array.sub ap.SubData !i j)); i := !i + j}
+                 for j in n do yield DV(Backend(d).CreateDataBuffer(Array.sub ap.SubData !i j)); i := !i + j}
         | DVF(ap,at,ai) ->
             let aps = DVector.Split(ap, n)
             let ats = DVector.Split(at, n)
@@ -649,7 +655,7 @@ and DVector =
         match a with
         | DV(ap)                      -> DM(ff(ap))
         | DVF(ap, at, ai)             -> let cp = fd(ap) in DMF(cp, df(cp, ap, at), ai)
-        | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r(a), ref 0u, ai)
+        | DVR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r(a), ref 0u, ai)
 
     static member inline Op_DV_D (a, ff, fd, df, r) =
         match a with
@@ -697,7 +703,7 @@ and DVector =
             match b with
             | DV(bp)                  -> DM(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
             match b with
             | DV(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -708,22 +714,22 @@ and DVector =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DVR(ap,  _,  _,  _, ai) ->
             match b with
-            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai)
             | DVF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DV_DV_D (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
@@ -1070,7 +1076,7 @@ and DVector =
 
     /// Add scalar `b` to vector `a` at index `i`
     static member AddItem (a:DVector, i:int, b:DNumber) =
-        let inline ff(a:IDataBuffer, b) = let aa = a.DeepCopy in aa.SubData.[i] <- aa.SubData.[i] + b; aa
+        let inline ff(a:IDataBuffer, b) = let aa = a.DeepCopy() in aa.SubData.[i] <- aa.SubData.[i] + b; aa
         let inline fd(a, b) = DVector.AddItem(a, i, b)
         let inline df_da(cp, ap, at) = at
         let inline df_db(cp, bp, bt) = DVector.AddItem(DVector.ZeroN a.Length, i, bt)
@@ -1083,7 +1089,7 @@ and DVector =
     /// Add subvector `b` to vector `a`, starting from index `i`
     static member AddSubVector (a:DVector, i:int, b:DVector) =
         let inline ff(a:IDataBuffer, b:IDataBuffer) = 
-            let aa = a.DeepCopy
+            let aa = a.DeepCopy()
             for j = 0 to b.Length - 1 do
                 aa.SubData.[i + j] <- aa.SubData.[i + j] + b.SubData.[j]
             aa
@@ -1300,7 +1306,7 @@ and DVector =
         elif b.Length = 0 then
             a
         else
-            let inline ff(a:IDataBuffer, b:IDataBuffer) = DataBuffer<number>(Array.append a.SubData b.SubData)
+            let inline ff(a:IDataBuffer, b:IDataBuffer) = NativeDataBuffer<number>(Array.append a.SubData b.SubData)
             let inline fd(a, b) = DVector.Append(a, b)
             let inline df_da(cp, ap, at) = DVector.Append(at, DVector.ZeroN b.Length)
             let inline df_db(cp, bp, bt) = DVector.Append(DVector.ZeroN a.Length, bt)
@@ -1428,14 +1434,14 @@ and DNDArray =
     /// Tangent value of this DM
     member d.T =
         match d with
-        | DM(_) -> DNDArray.ZeroMN d.Rows d.Cols
+        | DM(_) -> DNDArray.ZeroMN d.Rows d.Cols (Backend(d))
         | DMF(_,at,_) -> at
         | DMR(_,_,_,_,_) -> failwith "Cannot get tangent value of DMR."
     /// Adjoint value of this DM
     member d.A
         with get() =
             match d with
-            | DM(_) -> DNDArray.ZeroMN d.Rows d.Cols
+            | DM(_) -> DNDArray.ZeroMN d.Rows d.Cols (Backend(d))
             | DMF(_,_,_) -> failwith "Cannot get adjoint value of DMF."
             | DMR(_,a,_,_,_) -> !a
         and set(v) =
@@ -1456,12 +1462,12 @@ and DNDArray =
             | DMF(_,_,_) -> failwith "Cannot set fan-out value of DMF."
             | DMR(_,_,_,f,_) -> f := v
     member d.GetForward(t:DNDArray, i:uint32) = DMF(d, t, i)
-    member d.GetReverse(i:uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols), Noop, ref 0u, i)
-    member d.Copy() =
+    member d.GetReverse(i:uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols (Backend(d))), Noop, ref 0u, i)
+    member d.DeepCopy() =
         match d with
         | DM(ap) -> DM(ap)
-        | DMF(ap,at,ai) -> DMF(ap.Copy(), at.Copy(), ai)
-        | DMR(ap,aa,at,af,ai) -> DMR(ap.Copy(), ref ((!aa).Copy()), at, ref (!af), ai)
+        | DMF(ap,at,ai) -> DMF(ap.DeepCopy(), at.DeepCopy(), ai)
+        | DMR(ap,aa,at,af,ai) -> DMR(ap.DeepCopy(), ref ((!aa).DeepCopy()), at, ref (!af), ai)
     member d.Length =
         match d with
         | DM(ap) -> ap.Length
@@ -1503,8 +1509,8 @@ and DNDArray =
             if i < d.Rows - 1 then sb.AppendLine() |> ignore
         sb.ToString()
 
-    static member Zero = DM(ShapedDataBufferView(DataBuffer<number>(Array.empty)))
-    static member ZeroMN m n = DM(ShapedDataBufferView(DataBuffer<number>(Array.create (m * n) number0), int64 m, int64 n))
+    static member Zero = DM(ShapedDataBufferView(NativeDataBuffer<number>(Array.empty), int64 0))
+    static member ZeroMN m n (b:Backend<number>) = DM(ShapedDataBufferView(b.CreateDataBuffer(Array.create (m * n) number0), int64 m, int64 n))
 
     static member OfRows (s:seq<DVector>) = 
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
@@ -1517,7 +1523,7 @@ and DNDArray =
             DMF(DNDArray.OfRows(ap), DNDArray.OfRows(at), ai)
         | DVR(_,_,_,_,ai) ->
             let ap = s |> Seq.map (fun x -> x.P)
-            let cp = DNDArray.OfRows(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), Make_DMRows_ofDVs(s |> Seq.toArray), ref 0u, ai)
+            let cp = DNDArray.OfRows(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(ap))), Make_DMRows_ofDVs(s |> Seq.toArray), ref 0u, ai)
 
     // Creates a matrix with `m` rows from array `a`, filling columns from left to right and rows from top to bottom. The number of columns will be deduced from `m` and the length of `a`. The length of `a` must be an integer multiple of `m`.
     static member OfDNumberArray (m : int, a : DNumber[]) =
@@ -1529,12 +1535,12 @@ and DNDArray =
             do newarray.[i] <- numbers.[i]
         match a.[0] with 
         | D(_) -> 
-            DM(ShapedDataBufferView(DataBuffer<number>(numbers), int64 m, int64 n))
+            DM(ShapedDataBufferView(NativeDataBuffer<number>(numbers), int64 m, int64 n))
         | DF(_,_,ai) -> 
             DMF(DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P)), DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.T)), ai)
         | DR(_,_,_,_,ai) -> 
             let cp = DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P))
-            DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), Make_DM_ofDs(a), ref 0u, ai)
+            DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), Make_DM_ofDs(a), ref 0u, ai)
 
     static member OfNumberArray (m : int, a : number[]) =
         let n = a.Length / m
@@ -1544,13 +1550,13 @@ and DNDArray =
             let result = Array.create size number0
             for i = 0 to a.Length
                 do result.[i] <- a.[i]
-        DM(ShapedDataBufferView(DataBuffer<number>(result), int64 m, int64 n))
+        DM(ShapedDataBufferView(NativeDataBuffer<number>(result), int64 m, int64 n))
 
     static member inline Op_DM_DM (a, ff, fd, df, r) =
         match a with
         | DM(ap)                      -> DM(ff(ap))
         | DMF(ap, at, ai)             -> let cp = fd(ap) in DMF(cp, df(cp, ap, at), ai)
-        | DMR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r(a), ref 0u, ai)
+        | DMR(ap,_,_,_,ai)            -> let cp = fd(ap) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r(a), ref 0u, ai)
 
     static member inline Op_DM_DV (a, ff, fd, df, r) =
         match a with
@@ -1570,7 +1576,7 @@ and DNDArray =
             match b with
             | DM(bp)                  -> DM(ff(ap, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
             match b with
             | DM(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1581,22 +1587,22 @@ and DNDArray =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DMR(ap,  _,  _,  _, ai) ->
             match b with
-            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai)
             | DMF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DM_D_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
@@ -1604,7 +1610,7 @@ and DNDArray =
             match b with
             | D(bp)                   -> DM(ff(ap, bp))
             | DF(bp, bt, bi)          -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DR(bp,  _,  _,  _, bi)  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DR(bp,  _,  _,  _, bi)  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
             match b with
             | D(_)                    -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1615,22 +1621,22 @@ and DNDArray =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DMR(ap,  _,  _,  _, ai) ->
             match b with
-            | D(_)                    -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | D(_)                    -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai)
             | DF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_D_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
@@ -1638,7 +1644,7 @@ and DNDArray =
             match b with
             | DM(bp)                  -> DM(ff(ap, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi)
         | DF(ap, at, ai) ->
             match b with
             | DM(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1649,22 +1655,22 @@ and DNDArray =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DR(ap,  _,  _,  _, ai) ->
             match b with
-            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai)
             | DMF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DM_DV_DV (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
@@ -1740,7 +1746,7 @@ and DNDArray =
             match b with
             | DV(bp)                  -> DM(ff(ap, bp))
             | DVF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DVR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi)
         | DMF(ap, at, ai) ->
             match b with
             | DV(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1751,22 +1757,22 @@ and DNDArray =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DMR(ap,  _,  _,  _, ai) ->
             match b with
-            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DV(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai)
             | DVF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DVR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     static member inline Op_DV_DM_DM (a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d) =
         match a with
@@ -1774,7 +1780,7 @@ and DNDArray =
             match b with
             | DM(bp)                  -> DM(ff(ap, bp))
             | DMF(bp, bt, bi)         -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi)
-            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi)
+            | DMR(bp,  _,  _,  _, bi) -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi)
         | DVF(ap, at, ai) ->
             match b with
             | DM(_)                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai)
@@ -1785,22 +1791,22 @@ and DNDArray =
                 | _                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
                 | 1                   -> let cp = fd(ap, b) in DMF(cp, df_da(cp, ap, at), ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
         | DVR(ap,  _,  _,  _, ai) ->
             match b with
-            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai)
+            | DM(_)                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai)
             | DMF(bp, bt, bi) ->
                 match compare ai bi with
                 | -1                  -> let cp = fd(a, bp) in DMF(cp, df_db(cp, bp, bt), bi) // ai < bi
-                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 1                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
                 | _                   -> failwith "Forward and reverse AD cannot run on the same level."
             | DMR(bp,  _,  _,  _, bi) ->
                 match compare ai bi with
-                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_d(a, b), ref 0u, ai) // ai = bi
-                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_c_d(a, b), ref 0u, bi) // ai < bi
-                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols), r_d_c(a, b), ref 0u, ai) // ai > bi
+                | 0                   -> let cp = fd(ap, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_d(a, b), ref 0u, ai) // ai = bi
+                | -1                  -> let cp = fd(a, bp) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_c_d(a, b), ref 0u, bi) // ai < bi
+                | _                   -> let cp = fd(ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), r_d_c(a, b), ref 0u, ai) // ai > bi
 
     /// Element-wise addition of `a` and `b`
     static member (+) (a:DNDArray, b:DNDArray) =
@@ -2180,28 +2186,28 @@ and DNDArray =
     static member Sign (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(signummod, a)
         let inline fd(a) = DNDArray.Sign a
-        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r(a) = Sign_DM(a)
         DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
     static member Floor (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(floor, a)
         let inline fd(a) = floor a
-        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r(a) = Floor_DM(a)
         DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
     static member Ceiling (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(ceil, a)
         let inline fd(a) = ceil a
-        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r(a) = Ceil_DM(a)
         DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
     static member Round (a:DNDArray) =
         let inline ff(a) = Backend(a).Map_F_M(round, a)
         let inline fd(a) = round a
-        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols
+        let inline df(cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r(a) = Round_DM(a)
         DNDArray.Op_DM_DM (a, ff, fd, df, r)
 
@@ -2259,10 +2265,10 @@ and DNDArray =
 
     /// Add scalar `b` to matrix `a` at row `i` and column `j`
     static member AddItem (a:DNDArray, i:int, j:int, b:DNumber) =
-        let inline ff(a:ShapedDataBufferView<number>, b:number) = let aa = a.DeepCopy in aa.[i, j] <- b; aa
+        let inline ff(a:ShapedDataBufferView<number>, b:number) = let aa = a.DeepCopy() in aa.[i, j] <- b; aa
         let inline fd(a, b) = DNDArray.AddItem(a, i, j, b)
         let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DNDArray.AddItem(DNDArray.ZeroMN a.Rows a.Cols, i, j, bt)
+        let inline df_db(cp, bp, bt) = DNDArray.AddItem(DNDArray.ZeroMN a.Rows a.Cols (Backend(a)), i, j, bt)
         let inline df_dab(cp, ap, at, bp, bt) = DNDArray.AddItem(at, i, j, bt)
         let inline r_d_d(a, b) = AddItem_DM_D(a, i, j, b)
         let inline r_d_c(a, b) = AddItem_DM_DCons(a)
@@ -2272,14 +2278,14 @@ and DNDArray =
     /// Add the elements of vector `b` to the diagonal elements of matrix `a`
     static member AddDiagonal (a:DNDArray, b:DVector) =
         let inline ff(a:ShapedDataBufferView<number>, b:IDataBuffer) =
-            let aa = a.DeepCopy
+            let aa = a.DeepCopy()
             let n = min (a.Rows) (a.Cols) |> min b.Length
             for i = 0 to n - 1 do
                 aa.[i, i] <- aa.[i, i] + b.SubData.[i]
             aa
         let inline fd(a, b) = DNDArray.AddDiagonal(a, b)
         let inline df_da(cp, ap, at) = at
-        let inline df_db(cp, bp, bt) = DNDArray.AddDiagonal(DNDArray.ZeroMN a.Rows a.Cols, bt)
+        let inline df_db(cp, bp, bt) = DNDArray.AddDiagonal(DNDArray.ZeroMN a.Rows a.Cols (Backend(a)), bt)
         let inline df_dab(cp, ap, at, bp, bt) = DNDArray.AddDiagonal(at, bt)
         let inline r_d_d(a, b) = AddDiagonal_DM_DV(a, b)
         let inline r_d_c(a, b) = AddDiagonal_DM_DVCons(a)
@@ -2645,13 +2651,13 @@ module DV =
     /// Converts vector `v` into an array
     let inline toArray (v:DVector) = v.ToArray()
     /// Creates a copy of vector `v`
-    let inline copy (v:DVector) = v.Copy()
+    let inline copy (v:DVector) = v.DeepCopy()
     /// Creates a vector with `n` elements, each with value `v`
-    let inline create n (v:'a) = 
+    let inline create n (v:'a) (backend:Backend<number>) = 
         let at = typeof<'a>
         if at.Equals(typeof<DNumber>) then DVector.OfArray(Array.create n (unbox<DNumber>(box v)))
-        elif at.Equals(typeof<number>) then DV (new DataBuffer<number>(Array.create n (unbox<number>(box v))))
-        elif at.Equals(typeof<int>) then DV (new DataBuffer<number>(Array.create n (unbox<int>(box v) |> toNumber)))
+        elif at.Equals(typeof<number>) then DV (new NativeDataBuffer<number>(Array.create n (unbox<number>(box v))))
+        elif at.Equals(typeof<int>) then DV (new NativeDataBuffer<number>(Array.create n (unbox<int>(box v) |> toNumber)))
         else fail_with_invalid_type_message ()
     /// Creates a vector with `n` zero elements
     let inline zeroCreate n = DVector.ZeroN n
@@ -2661,8 +2667,8 @@ module DV =
     let inline init n (f:int->'a) = 
         let at = typeof<'a>
         if at.Equals(typeof<DNumber>) then DVector.OfArray(Array.init n (unbox<int->DNumber>(box f)))
-        elif at.Equals(typeof<number>) then DV (new DataBuffer<number>(Array.init n (unbox<int->number>(box f))))
-        elif at.Equals(typeof<int>) then DV (new DataBuffer<number>((Array.init n (unbox<int->int>(box f))) |> Array.map toNumber))
+        elif at.Equals(typeof<number>) then DV (new NativeDataBuffer<number>(Array.init n (unbox<int->number>(box f))))
+        elif at.Equals(typeof<int>) then DV (new NativeDataBuffer<number>((Array.init n (unbox<int->int>(box f))) |> Array.map toNumber))
         else fail_with_invalid_type_message ()
     /// Returns true if vector `v` is empty, otherwise returns false
     let isEmpty (v:DVector) = v.Length = 0
@@ -2720,9 +2726,9 @@ module DV =
     /// Sums the elements of vector `v`
     let inline sum (v:DVector) = DVector.Sum(v)
     /// Creates a vector with `n` elements where the `i`-th element is one and the rest of the elements are zero
-    let inline standardBasis (n:int) (i:int) = DV(DataBuffer<number>(standardBasis n i))
+    let inline standardBasis (n:int) (i:int) = DV(NativeDataBuffer<number>(standardBasis n i))
     /// Creates a vector with `n` elements where the `i`-th element has value `v` and the rest of the elements are zero
-    let inline standardBasisVal (n:int) (i:int) (v:number) = DV(DataBuffer<number>(standardBasisVal n i v))
+    let inline standardBasisVal (n:int) (i:int) (v:number) = DV(NativeDataBuffer<number>(standardBasisVal n i v))
     /// Gets the unit vector codirectional with vector `v`
     let inline unitDV (v:DVector) = v / DVector.L2Norm(v)
     /// Converts matrix `m` into a vector by stacking its rows
@@ -2799,7 +2805,7 @@ module DM =
     /// Number of columns in matrix `m`. Same with DM.cols.
     let inline length2 (m:DNDArray) = m.Cols
     /// Creates a copy of matrix `m`
-    let inline copy (m:DNDArray) = m.Copy()
+    let inline copy (m:DNDArray) = m.DeepCopy()
     /// Determinant of matrix `m`
     let inline det (m:DNDArray) = DNDArray.Det(m)
     /// Maximum of the entries of matrix `m`
@@ -2823,9 +2829,9 @@ module DM =
     /// Shift and scale the elements of matrix `m` to be in the range [0, 1]
     let inline normalize (m:DNDArray) = DNDArray.Normalize(m)
     /// Solve a system of linear equations Ax = b, where the coefficient matrix `m` has general form
-    let inline solve (m:DNDArray) (v:DVector) = DNDArray.Solve(m, v)
+//    let inline solve (m:DNDArray) (v:DVector) = DNDArray.Solve(m, v)
     /// Solve a system of linear equations Ax = b, where the coefficient matrix `m` is symmetric
-    let inline solveSymmetric (m:DNDArray) (v:DVector) = DNDArray.SolveSymmetric(m, v)
+//    let inline solveSymmetric (m:DNDArray) (v:DVector) = DNDArray.SolveSymmetric(m, v)
     /// Sums the elements of matrix `m`
     let inline sum (m:DNDArray) = DNDArray.Sum(m)
     /// Trace of matrix `m`
@@ -2847,7 +2853,7 @@ module DOps =
         | :? seq<DNumber> as v ->
             v |> Seq.toArray |> DV.ofArray
         | _ ->
-            DV(DataBuffer<number>(v |> Seq.toArray |> Array.map toNumber))
+            DV(NativeDataBuffer<number>(v |> Seq.toArray |> Array.map toNumber))
     /// Make forward AD type, with tag `i`, primal `p` and tangent `t`
     let inline makeForward i (t:^a) (p:^a) = 
         (^a : (member GetForward : ^a -> uint32 -> ^a) p, t, i)
@@ -3035,7 +3041,7 @@ module DOps =
                 | :? DNDArray as d ->
                     match d with
                     | DMR(_,_,o,_,_) ->
-                        d.A <- DNDArray.ZeroMN d.Rows d.Cols
+                        d.A <- DNDArray.ZeroMN d.Rows d.Cols (Backend(d))
                         d.F <- d.F + 1u
                         if d.F = 1u then
                             match o with

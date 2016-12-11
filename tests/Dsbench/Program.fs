@@ -236,13 +236,13 @@ let main argv =
             v
 
         let xv = Array.init ops.vectorSize (fun _ -> rnd.NextDouble())
-        let xvD = DV(DataBuffer<float>(xv))
+        let xvD = DV(NativeDataBuffer<float>(xv))
 
         let vv = Array.init ops.vectorSize (fun _ -> rnd.NextDouble())
-        let vvD = DV(DataBuffer<float>(vv))
+        let vvD = DV(NativeDataBuffer<float>(vv))
 
         let zv = Array.init 3 (fun _ -> rnd.NextDouble())
-        let zvD = DV(DataBuffer<float>(zv))
+        let zvD = DV(NativeDataBuffer<float>(zv))
 
         let fvs (x:float[]) =
             x |> Array.sumBy (fun v -> v * log (v / 2.))
