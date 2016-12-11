@@ -131,7 +131,7 @@ module ErrorMessages =
     let InvalidArgVMCols() = invalidArg "" "Length of vector must match number of columns of matrix."
 
 [<AbstractClass>]
-type IDataBuffer<'T>(data : 'T [], length : int32, offset : int32) = 
+type IDataBuffer<'T>(data : 'T [], offset : int32, length : int32) = 
     abstract Length : int32
     abstract Offset : int32
     abstract Data : 'T []
@@ -141,7 +141,7 @@ type IDataBuffer<'T>(data : 'T [], length : int32, offset : int32) =
     abstract DeepCopy : unit -> IDataBuffer<'T>
     abstract ShallowCopy : unit -> IDataBuffer<'T>
 
-type NativeDataBuffer<'T>(data : 'T [], length : int32, offset : int32) = 
+type NativeDataBuffer<'T>(data : 'T [], offset : int32, length : int32) = 
     inherit IDataBuffer<'T>(data, length, offset)
     let mutable _length = length
     let mutable _offset = offset
@@ -153,7 +153,7 @@ type NativeDataBuffer<'T>(data : 'T [], length : int32, offset : int32) =
     override d.GetValues startIndex length = NativeDataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
     override d.ShallowCopy() = NativeDataBuffer<'T>(data, length, offset) :> IDataBuffer<'T>
     override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
-    override d.ToString() = sprintf "DataBuffer %A" d.SubData
+    override d.ToString() = sprintf "DataBuffer-%i %A" d.Length d.SubData
 
 type ShapedDataBufferView<'T>(buffer : IDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
     let _buffer = buffer
