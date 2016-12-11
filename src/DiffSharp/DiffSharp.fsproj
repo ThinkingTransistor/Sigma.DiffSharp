@@ -77,7 +77,6 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Util.fs" />
     <Compile Include="Backend.fs" />
-    <Compile Include="Backend.OpenBLAS.fs" />
     <Compile Include="Config.fs" />
     <Compile Include="AD.Float32.fs" />
     <Compile Include="AD.Float64.fs" />

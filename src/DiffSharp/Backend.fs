@@ -35,53 +35,57 @@
 //
 //   www.bcl.hamilton.ie
 //
-
 namespace DiffSharp.Backend
 
-/// Interface for DiffSharp backends
-type Backend<'T> =
-    // Scalar valued
-    abstract member Mul_Dot_V_V : 'T[] * 'T[] -> 'T
-    abstract member L1Norm_V : ('T[]) -> 'T
-    abstract member L2Norm_V : ('T[]) -> 'T
-    abstract member SupNorm_V : ('T[]) -> 'T
-    abstract member Sum_V : ('T[]) -> 'T
-    abstract member Sum_M : ('T[,]) -> 'T
-    
-    // Vector valued
-    abstract member Add_V_V : 'T[] * 'T[] -> 'T[]
-    abstract member Add_S_V : 'T * 'T[] -> 'T[]
-    abstract member Sub_V_V : 'T[] * 'T[] -> 'T[]
-    abstract member Sub_S_V : 'T * 'T[] -> 'T[]
-    abstract member Sub_V_S : 'T[] * 'T -> 'T[]
-    abstract member Mul_S_V : 'T * 'T[] -> 'T[]
-    abstract member Mul_M_V : 'T[,] * 'T[] -> 'T[]
-    abstract member Mul_M_V_Add_V : 'T[,] * 'T[] * 'T[] -> 'T[]
-    abstract member Mul_V_M : 'T[] * 'T[,] -> 'T[]
-    abstract member Solve_M_V : 'T[,] * 'T[] -> 'T[] option
-    abstract member SolveSymmetric_M_V : 'T[,] * 'T[] -> 'T[] option
-    abstract member Diagonal_M : 'T[,] -> 'T[]
-    abstract member Map_F_V : ('T -> 'T) * 'T[] -> 'T[]
-    abstract member Map2_F_V_V : ('T -> 'T -> 'T) * 'T[] * 'T[] -> 'T[]
-    abstract member ReshapeCopy_MRows_V : 'T[,] -> 'T[]
+open DiffSharp.Util
 
+/// Interface for DiffSharp backends
+[<AllowNullLiteral>]
+type Backend<'T> = 
+    // Create buffer
+    abstract CreateDataBuffer : 'T [] -> IDataBuffer<'T>
+    // Scalar valued
+    abstract Mul_Dot_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> 'T
+    abstract L1Norm_V : IDataBuffer<'T> -> 'T
+    abstract L2Norm_V : IDataBuffer<'T> -> 'T
+    abstract SupNorm_V : IDataBuffer<'T> -> 'T
+    abstract Sum_V : IDataBuffer<'T> -> 'T
+    abstract Sum_M : IDataBuffer<'T> -> 'T
+    // Vector valued
+    abstract Add_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Add_S_V : 'T * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Sub_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Sub_S_V : 'T * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Sub_V_S : IDataBuffer<'T> * 'T -> IDataBuffer<'T>
+    abstract Mul_S_V : 'T * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Mul_M_V : ShapedDataBufferView<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Mul_M_V_Add_V : ShapedDataBufferView<'T> * IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Mul_V_M : IDataBuffer<'T> * ShapedDataBufferView<'T> -> IDataBuffer<'T>
+    abstract Solve_M_V : ShapedDataBufferView<'T> * IDataBuffer<'T> -> IDataBuffer<'T> option
+    abstract SolveSymmetric_M_V : ShapedDataBufferView<'T> * IDataBuffer<'T> -> IDataBuffer<'T> option
+    abstract Diagonal_M : ShapedDataBufferView<'T> -> IDataBuffer<'T>
+    abstract Map_F_V : ('T -> 'T) * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract Map2_F_V_V : ('T -> 'T -> 'T) * IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
+    abstract ReshapeCopy_MRows_V : ShapedDataBufferView<'T> -> IDataBuffer<'T>
     // Matrix valued
-    abstract member Mul_Out_V_V : 'T[] * 'T[] -> 'T[,]
-    abstract member Add_M_M : 'T[,] * 'T[,] -> 'T[,]
-    abstract member Add_S_M : 'T * 'T[,] -> 'T[,]
-    abstract member Add_V_MCols : 'T[] * 'T[,] -> 'T[,]
-    abstract member Sub_M_M : 'T[,] * 'T[,] -> 'T[,]
-    abstract member Sub_M_S : 'T[,] * 'T -> 'T[,]
-    abstract member Sub_S_M : 'T * 'T[,] -> 'T[,]
-    abstract member Mul_M_M : 'T[,] * 'T[,] -> 'T[,]
-    abstract member Mul_S_M : 'T * 'T[,] -> 'T[,]
-    abstract member Mul_M_M_Add_V_MCols : 'T[,] * 'T[,] * 'T[] -> 'T[,]
-    abstract member Mul_Had_M_M : 'T[,] * 'T[,] -> 'T[,]
-    abstract member Inverse_M : 'T[,] -> 'T[,] option
-    abstract member Det_M : 'T[,] -> 'T option
-    abstract member Transpose_M : 'T[,] -> 'T[,]
-    abstract member Map_F_M : ('T -> 'T) * 'T[,] -> 'T[,]
-    abstract member Map2_F_M_M : ('T -> 'T -> 'T) * 'T[,] * 'T[,] -> 'T[,]
-    abstract member ReshapeCopy_V_MRows : int * 'T[] -> 'T[,]
-    abstract member RepeatReshapeCopy_V_MRows : int * 'T[] -> 'T[,]
-    abstract member RepeatReshapeCopy_V_MCols : int * 'T[] -> 'T[,]
+    abstract Mul_Out_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract Add_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Add_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Add_V_MCols : IDataBuffer<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Sub_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Sub_M_S : ShapedDataBufferView<'T> * 'T -> ShapedDataBufferView<'T>
+    abstract Sub_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Mul_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Mul_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Mul_M_M_Add_V_MCols : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> * IDataBuffer<'T>
+     -> ShapedDataBufferView<'T>
+    abstract Mul_Had_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Inverse_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T> option
+    abstract Det_M : ShapedDataBufferView<'T> -> 'T option
+    abstract Transpose_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Map_F_M : ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Map2_F_M_M : ('T -> 'T -> 'T) * ShapedDataBufferView<'T> * ShapedDataBufferView<'T>
+     -> ShapedDataBufferView<'T>
+    abstract ReshapeCopy_V_MRows : int * IDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract RepeatReshapeCopy_V_MRows : int * IDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract RepeatReshapeCopy_V_MCols : int * IDataBuffer<'T> -> ShapedDataBufferView<'T>
