@@ -15,15 +15,6 @@ You can come and join the Gitter chat room, if you want to chat with us:
 
 [![Join the chat at https://gitter.im/DiffSharp/DiffSharp](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/DiffSharp/DiffSharp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-### Project statistics
-
-[![Issue Stats](http://issuestats.com/github/diffsharp/diffsharp/badge/pr?style=flat-square)](http://issuestats.com/github/diffsharp/diffsharp)
-[![Issue Stats](http://issuestats.com/github/diffsharp/diffsharp/badge/issue?style=flat-square)](http://issuestats.com/github/diffsharp/diffsharp)
-
-### Current build status
-
-[![Build status](https://ci.appveyor.com/api/projects/status/wxgs03g5g1affxrs?svg=true)](https://ci.appveyor.com/project/gbaydin/diffsharp)
-
 ### License
 
 Copyright (c) 2014–2016, National University of Ireland Maynooth (Atilim Gunes Baydin, Barak A. Pearlmutter)
