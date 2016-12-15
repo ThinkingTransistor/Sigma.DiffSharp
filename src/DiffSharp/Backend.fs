@@ -43,41 +43,41 @@ open DiffSharp.Util
 [<AllowNullLiteral>]
 type Backend<'T> = 
     // Create buffer
-    abstract CreateDataBuffer : 'T [] -> IDataBuffer<'T>
+    abstract CreateDataBuffer : 'T [] -> ISigmaDiffDataBuffer<'T>
     // Scalar valued
-    abstract Mul_Dot_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> 'T
-    abstract L1Norm_V : IDataBuffer<'T> -> 'T
-    abstract L2Norm_V : IDataBuffer<'T> -> 'T
-    abstract SupNorm_V : IDataBuffer<'T> -> 'T
-    abstract Sum_V : IDataBuffer<'T> -> 'T
-    abstract Sum_M : IDataBuffer<'T> -> 'T
+    abstract Mul_Dot_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> 'T
+    abstract L1Norm_V : ISigmaDiffDataBuffer<'T> -> 'T
+    abstract L2Norm_V : ISigmaDiffDataBuffer<'T> -> 'T
+    abstract SupNorm_V : ISigmaDiffDataBuffer<'T> -> 'T
+    abstract Sum_V : ISigmaDiffDataBuffer<'T> -> 'T
+    abstract Sum_M : ISigmaDiffDataBuffer<'T> -> 'T
     // Vector valued
-    abstract Add_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Add_S_V : 'T * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Sub_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Sub_S_V : 'T * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Sub_V_S : IDataBuffer<'T> * 'T -> IDataBuffer<'T>
-    abstract Mul_S_V : 'T * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Mul_M_V : ShapedDataBufferView<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Mul_M_V_Add_V : ShapedDataBufferView<'T> * IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Mul_V_M : IDataBuffer<'T> * ShapedDataBufferView<'T> -> IDataBuffer<'T>
-    abstract Solve_M_V : ShapedDataBufferView<'T> * IDataBuffer<'T> -> IDataBuffer<'T> option
-    abstract SolveSymmetric_M_V : ShapedDataBufferView<'T> * IDataBuffer<'T> -> IDataBuffer<'T> option
-    abstract Diagonal_M : ShapedDataBufferView<'T> -> IDataBuffer<'T>
-    abstract Map_F_V : ('T -> 'T) * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract Map2_F_V_V : ('T -> 'T -> 'T) * IDataBuffer<'T> * IDataBuffer<'T> -> IDataBuffer<'T>
-    abstract ReshapeCopy_MRows_V : ShapedDataBufferView<'T> -> IDataBuffer<'T>
+    abstract Add_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Add_S_V : 'T * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Sub_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Sub_S_V : 'T * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Sub_V_S : ISigmaDiffDataBuffer<'T> * 'T -> ISigmaDiffDataBuffer<'T>
+    abstract Mul_S_V : 'T * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Mul_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Mul_M_V_Add_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Mul_V_M : ISigmaDiffDataBuffer<'T> * ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Solve_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T> option
+    abstract SolveSymmetric_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T> option
+    abstract Diagonal_M : ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Map_F_V : ('T -> 'T) * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Map2_F_V_V : ('T -> 'T -> 'T) * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract ReshapeCopy_MRows_V : ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
     // Matrix valued
-    abstract Mul_Out_V_V : IDataBuffer<'T> * IDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract Mul_Out_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
     abstract Add_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Add_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
-    abstract Add_V_MCols : IDataBuffer<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Add_V_MCols : ISigmaDiffDataBuffer<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Sub_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Sub_M_S : ShapedDataBufferView<'T> * 'T -> ShapedDataBufferView<'T>
     abstract Sub_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Mul_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Mul_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
-    abstract Mul_M_M_Add_V_MCols : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> * IDataBuffer<'T>
+    abstract Mul_M_M_Add_V_MCols : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T>
      -> ShapedDataBufferView<'T>
     abstract Mul_Had_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Inverse_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T> option
@@ -86,6 +86,6 @@ type Backend<'T> =
     abstract Map_F_M : ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Map2_F_M_M : ('T -> 'T -> 'T) * ShapedDataBufferView<'T> * ShapedDataBufferView<'T>
      -> ShapedDataBufferView<'T>
-    abstract ReshapeCopy_V_MRows : int * IDataBuffer<'T> -> ShapedDataBufferView<'T>
-    abstract RepeatReshapeCopy_V_MRows : int * IDataBuffer<'T> -> ShapedDataBufferView<'T>
-    abstract RepeatReshapeCopy_V_MCols : int * IDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract ReshapeCopy_V_MRows : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract RepeatReshapeCopy_V_MRows : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract RepeatReshapeCopy_V_MCols : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>

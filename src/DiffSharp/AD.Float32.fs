@@ -65,7 +65,7 @@ let internal number2 = 2.f
 
 type number = float32
 
-type IDataBuffer = IDataBuffer<number>
+type IDataBuffer = ISigmaDiffDataBuffer<number>
 
 let inline Backend a = global.DiffSharp.Config.GlobalConfig.BackendProvider.GetBackend(a).BackendHandle
 let inline VisualizationContrast() = global.DiffSharp.Config.GlobalConfig.Float32VisualizationContrast

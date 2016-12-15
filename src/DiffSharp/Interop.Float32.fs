@@ -43,7 +43,7 @@ open System
 
 type number = float32
 
-type IDataBuffer = IDataBuffer<number>
+type IDataBuffer = ISigmaDiffDataBuffer<number>
 
 type internal ADD = DiffSharp.AD.Float32.DNumber
 
@@ -262,7 +262,7 @@ and DVector(v : ADDV) =
 and ADDND = DiffSharp.AD.Float32.DNDArray
 
 and DNDArray(m : ADDND) = 
-    new(data : IDataBuffer<number>, [<ParamArray>] shape : int64 []) = 
+    new(data : ISigmaDiffDataBuffer<number>, [<ParamArray>] shape : int64 []) = 
         DNDArray(ADDND.DM(ShapedDataBufferView<number>(data, shape)))
     member internal this.asADDND = m
     static member internal ADDNDtoDND(x : ADDND) = new DNDArray(x)

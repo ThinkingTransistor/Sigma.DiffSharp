@@ -130,14 +130,14 @@ module ErrorMessages =
     let InvalidArgVMRows() = invalidArg "" "Length of vector must match number of rows of matrix."
     let InvalidArgVMCols() = invalidArg "" "Length of vector must match number of columns of matrix."
 
-type IDataBuffer<'T> = 
+type ISigmaDiffDataBuffer<'T> = 
     abstract Length : int32
     abstract Offset : int32
     abstract Data : 'T[]
     abstract SubData : 'T[]
-    abstract GetValues : int32 -> int32 -> IDataBuffer<'T>
-    abstract DeepCopy : unit -> IDataBuffer<'T>
-    abstract ShallowCopy : unit -> IDataBuffer<'T>
+    abstract GetValues : int32 -> int32 -> ISigmaDiffDataBuffer<'T>
+    abstract DeepCopy : unit -> ISigmaDiffDataBuffer<'T>
+    abstract ShallowCopy : unit -> ISigmaDiffDataBuffer<'T>
 
 type DataBufferSubDataUtils =
     static member SubData<'T> (data : 'T[]) (offset : int32) (length : int32) =
@@ -150,19 +150,19 @@ type NativeDataBuffer<'T>(data : 'T [], offset : int32, length : int32) =
     let mutable _data = data
     new(data : 'T []) = NativeDataBuffer<'T>(data, 0, data.Length)
 
-    interface IDataBuffer<'T> with 
+    interface ISigmaDiffDataBuffer<'T> with 
         override d.Length = _length
         override d.Offset = _offset
         override d.Data = _data
         override d.SubData =  _data.[_offset..(_offset + _length - 1)]
-        override d.GetValues startIndex length = NativeDataBuffer<'T>(data, length, _offset + offset) :> IDataBuffer<'T>
-        override d.ShallowCopy() = NativeDataBuffer<'T>(data, length, offset) :> IDataBuffer<'T>
-        override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
+        override d.GetValues startIndex length = NativeDataBuffer<'T>(data, length, _offset + offset) :> ISigmaDiffDataBuffer<'T>
+        override d.ShallowCopy() = NativeDataBuffer<'T>(data, length, offset) :> ISigmaDiffDataBuffer<'T>
+        override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), length, offset) :> ISigmaDiffDataBuffer<'T>
         end
 
-     override d.ToString() = sprintf "DataBuffer-%i %A" _length (d :> IDataBuffer<'T>).SubData
+     override d.ToString() = sprintf "DataBuffer-%i %A" _length (d :> ISigmaDiffDataBuffer<'T>).SubData
 
-type ShapedDataBufferView<'T>(buffer : IDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
+type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
     let _buffer = buffer
     let _shape = shape
     member d.DataBuffer = _buffer
