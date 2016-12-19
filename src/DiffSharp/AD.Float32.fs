@@ -1712,6 +1712,16 @@ and DNDArray =
             | DMF(_, _, _) -> failwith "Cannot set fan-out value of DMF."
             | DMR(_, _, _, f, _) -> f := v
     
+    member d.Buffer = 
+        let rec prec x = 
+            match x with
+            | DM(p) -> p
+            | DMF(xp, _, _) -> prec xp
+            | DMR(xp, _, _, _, _) -> prec xp
+        
+        let data = (prec d)
+        data
+
     member d.GetForward(t : DNDArray, i : uint32) = DMF(d, t, i)
     member d.GetReverse(i : uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols (Backend(d))), Noop, ref 0u, i)
     

@@ -52,6 +52,7 @@ and DNumber(x : ADD) =
     member internal this.asADD = x
     static member internal ADDtoD(x : ADD) = new DNumber(x)
     static member internal DtoADD(x : DNumber) = x.asADD
+    member d.BackendTag = int64 0
     member d.P = d.asADD.P |> DNumber.ADDtoD
     member d.T = d.asADD.T |> DNumber.ADDtoD
     member d.A = d.asADD.A |> DNumber.ADDtoD
@@ -153,6 +154,7 @@ and DVector(v : ADDV) =
     member d.P = d.asADDV.P |> DVector.ADDVtoDV
     member d.T = d.asADDV.T |> DVector.ADDVtoDV
     member d.A = d.asADDV.A |> DVector.ADDVtoDV
+    member d.Buffer = d.asADDV.Buffer
     member d.Item 
         with get i = d.asADDV.[i] |> DNumber.ADDtoD
     member d.GetReverse(i : uint32) = d.asADDV.GetReverse(i) |> DVector.ADDVtoDV
@@ -267,9 +269,11 @@ and DNDArray(m : ADDND) =
     member internal this.asADDND = m
     static member internal ADDNDtoDND(x : ADDND) = new DNDArray(x)
     static member internal DMtoADDM(x : DNDArray) = x.asADDND
+    member d.BackendTag = int64 0
     member d.P = d.asADDND.P |> DNDArray.ADDNDtoDND
     member d.T = d.asADDND.T |> DNDArray.ADDNDtoDND
     member d.A = d.asADDND.A |> DNDArray.ADDNDtoDND
+    member d.Buffer = d.asADDND.Buffer
     member d.GetReverse(i : uint32) = d.asADDND.GetReverse(i) |> DNDArray.ADDNDtoDND
 
     override d.ToString() = 
