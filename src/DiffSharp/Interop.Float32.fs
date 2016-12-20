@@ -48,14 +48,18 @@ type IDataBuffer = ISigmaDiffDataBuffer<number>
 type internal ADD = DiffSharp.AD.Float32.DNumber
 
 and DNumber(x : ADD) = 
+    let mutable _backendTag = int64 -1
     new(x : float32) = DNumber(ADD.D(x))
     member internal this.asADD = x
     static member internal ADDtoD(x : ADD) = new DNumber(x)
     static member internal DtoADD(x : DNumber) = x.asADD
-    member d.BackendTag = int64 0
+    member d.BackendTag
+        with get() = _backendTag
+        and set(v) = _backendTag <- v   
     member d.P = d.asADD.P |> DNumber.ADDtoD
     member d.T = d.asADD.T |> DNumber.ADDtoD
     member d.A = d.asADD.A |> DNumber.ADDtoD
+    member d.Value = d.asADD.Value 
     member d.GetReverse(i : uint32) = d.asADD.GetReverse(i) |> DNumber.ADDtoD
 
     override d.ToString() = 
@@ -264,12 +268,15 @@ and DVector(v : ADDV) =
 and ADDND = DiffSharp.AD.Float32.DNDArray
 
 and DNDArray(m : ADDND) = 
+    let mutable _backendTag = int64 -1
     new(data : ISigmaDiffDataBuffer<number>, [<ParamArray>] shape : int64 []) = 
         DNDArray(ADDND.DM(ShapedDataBufferView<number>(data, shape)))
     member internal this.asADDND = m
     static member internal ADDNDtoDND(x : ADDND) = new DNDArray(x)
     static member internal DMtoADDM(x : DNDArray) = x.asADDND
-    member d.BackendTag = int64 0
+    member d.BackendTag
+        with get() = _backendTag
+        and set(v) = _backendTag <- v       
     member d.P = d.asADDND.P |> DNDArray.ADDNDtoDND
     member d.T = d.asADDND.T |> DNDArray.ADDNDtoDND
     member d.A = d.asADDND.A |> DNDArray.ADDNDtoDND

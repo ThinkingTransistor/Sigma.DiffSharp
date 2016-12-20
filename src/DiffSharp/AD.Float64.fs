@@ -128,6 +128,15 @@ type DNumber =
             | DF(_, _, _) -> failwith "Cannot set fan-out value of DF."
             | DR(_, _, _, f, _) -> f := v
     
+    member d.Value
+        with get() =
+            let rec prec x = 
+                match x with
+                | D(p) -> p
+                | DF(xp, _, _) -> prec xp
+                | DR(xp, _, _, _, _) -> prec xp
+            prec d
+
     member d.GetForward(t : DNumber, i : uint32) = DF(d, t, i)
     member d.GetReverse(i : uint32) = DR(d, ref (D number0), Noop, ref 0u, i)
     

@@ -78,7 +78,7 @@ type DNumber =
     | D of number // Primal
     | DF of DNumber * DNumber * uint32 // Primal, tangent, tag
     | DR of DNumber * DNumber ref * TraceOp * uint32 ref * uint32 // Primal, adjoint, parent operation, fan-out counter, tag
-    
+
     /// Primal value of this D
     member d.P = 
         match d with
@@ -128,6 +128,15 @@ type DNumber =
             | DF(_, _, _) -> failwith "Cannot set fan-out value of DF."
             | DR(_, _, _, f, _) -> f := v
     
+    member d.Value
+        with get() =
+            let rec prec x = 
+                match x with
+                | D(p) -> p
+                | DF(xp, _, _) -> prec xp
+                | DR(xp, _, _, _, _) -> prec xp
+            prec d
+
     member d.GetForward(t : DNumber, i : uint32) = DF(d, t, i)
     member d.GetReverse(i : uint32) = DR(d, ref (D number0), Noop, ref 0u, i)
     
