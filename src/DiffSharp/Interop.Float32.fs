@@ -138,6 +138,8 @@ and DNumber(x : ADD) =
     static member Ceiling(a : DNumber) = DNumber(ceil (a.asADD))
     static member Round(a : DNumber) = DNumber(round (a.asADD))
     static member Sign(a : DNumber) = DNumber(ADD.Sign(a.asADD))
+    static member Sigmoid(a : DNumber) = DNumber(ADD.Sigmoid(a.asADD))
+    static member ReLU(a : DNumber) = DNumber(ADD.ReLU(a.asADD))
     static member SoftPlus(a : DNumber) = DNumber(ADD.SoftPlus(a.asADD))
     static member SoftSign(a : DNumber) = DNumber(ADD.SoftSign(a.asADD))
     static member Max(a : DNumber, b : DNumber) = DNumber(ADD.Max(a.asADD, b.asADD))
@@ -612,6 +614,8 @@ type AD =
     /// Returns the larger of two specified numbers.
     /// Returns the smaller of two numbers.
     static member inline Min(a : 'T, b : 'T) = min a b
+
+    static member inline ReverseProp(v : obj, d : obj) = DiffSharp.AD.Float32.DOps.reverseProp v d 
     
     static member inline LogSumExp(a : 'T) = (^T : (static member LogSumExp : ^T -> ^U) a)
     static member inline SoftPlus(a : 'T) = (^T : (static member SoftPlus : ^T -> ^T) a)
@@ -638,6 +642,7 @@ type AD =
     static member Solve(a : DNDArray, b : DVector) = DVector(ADDND.Solve(a.asADDND, b.asADDV))
     static member SolveSymmetric(a : DNDArray, b : DVector) = DVector(ADDND.SolveSymmetric(a.asADDND, b.asADDV))
     static member Inverse(a : DNDArray) = DNDArray(ADDND.Inverse(a.asADDND))
+
 /// Numerical differentiation module
 //type Numerical =
 //    /// First derivative of a scalar-to-scalar function `f`
