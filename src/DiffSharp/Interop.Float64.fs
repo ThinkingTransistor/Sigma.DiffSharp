@@ -50,7 +50,7 @@ type internal ADD = DiffSharp.AD.Float64.DNumber
 
 and DNumber(x : ADD) = 
     new(x : float) = DNumber(ADD.D(x))
-    member internal this.asADD = x
+    member this.asADD = x
     static member internal ADDtoD(x : ADD) = new DNumber(x)
     static member internal DtoADD(x : DNumber) = x.asADD
     member d.P = d.asADD.P |> DNumber.ADDtoD
@@ -152,7 +152,7 @@ and internal ADDV = DiffSharp.AD.Float64.DVector
 and DVector(v : ADDV) = 
     new(v : IDataBuffer) = DVector(ADDV.DV(v))
     new(v : DNumber []) = DVector(DiffSharp.AD.Float64.DOps.toDV (v |> Array.map DNumber.DtoADD))
-    member internal this.asADDV = v
+    member this.asADDV = v
     static member internal ADDVtoDV(v : ADDV) = new DVector(v)
     static member internal DVtoADDV(v : DVector) = v.asADDV
     member d.P = d.asADDV.P |> DVector.ADDVtoDV
@@ -270,7 +270,7 @@ and ADDND = DiffSharp.AD.Float64.DNDArray
 and DNDArray(m : ADDND) = 
     new(data : ISigmaDiffDataBuffer<number>, [<ParamArray>] shape : int64 []) = 
         DNDArray(ADDND.DM(ShapedDataBufferView<number>(data, shape)))
-    member internal this.asADDND = m
+    member this.asADDND = m
     static member internal ADDNDtoDND(x : ADDND) = new DNDArray(x)
     static member internal DMtoADDM(x : DNDArray) = x.asADDND    
     member d.P = d.asADDND.P |> DNDArray.ADDNDtoDND

@@ -155,9 +155,9 @@ type NativeDataBuffer<'T>(data : 'T [], offset : int32, length : int32) =
         override d.Offset = _offset
         override d.Data = _data
         override d.SubData =  _data.[_offset..(_offset + _length - 1)]
-        override d.GetValues startIndex length = NativeDataBuffer<'T>(data, length, _offset + offset) :> ISigmaDiffDataBuffer<'T>
-        override d.ShallowCopy() = NativeDataBuffer<'T>(data, length, offset) :> ISigmaDiffDataBuffer<'T>
-        override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), length, offset) :> ISigmaDiffDataBuffer<'T>
+        override d.GetValues startIndex length = NativeDataBuffer<'T>(data, _offset + offset, length) :> ISigmaDiffDataBuffer<'T>
+        override d.ShallowCopy() = NativeDataBuffer<'T>(data, offset, length) :> ISigmaDiffDataBuffer<'T>
+        override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), offset, length) :> ISigmaDiffDataBuffer<'T>
         end
 
      override d.ToString() = sprintf "DataBuffer-%i %A" _length (d :> ISigmaDiffDataBuffer<'T>).SubData

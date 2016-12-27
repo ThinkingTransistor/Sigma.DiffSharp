@@ -17,48 +17,16 @@ namespace InteropTest
 
 		public static void Main(string[] args)
 		{
-			// You can compute the value of the derivative of F at a point
-			DNumber f = Diff(F, 2.3);
+			DNumber a = new DNumber(1.0f).GetReverse(0);
 
-			// Or, you can generate a derivative function which you may use for many evaluations
-			// dF is the derivative function of F
-			var dF = Diff(F);
+			DNumber b = a * 2;
+			DNDArray array = new DNDArray(new Util.NativeDataBuffer<double>(new double[] {1, 2, 3, 4, 5, 6}), new long[] { 2, 3 });
 
-			// Evaluate the derivative function at different points
-			DNumber db = dF(2.3);
-			DNumber dc = dF(1.4);
+			DNumber c = AD.Sum(array * b);
 
-			Console.WriteLine(db);
-			Console.WriteLine(dc);
+			Float64.DOps.reverseProp(new DNumber(1.0f).asADD, c.asADD);
 
-			// Construction anDNumbercasting of DNumber(scalar) values
-			// Construct new D
-			DNumber a = new DNumber(4.1);
-			// Cast double to D
-			DNumber b = 4.1;
-			// Cast DNumberto double
-			double c = b;
-
-			// Construction anDNumbercasting of DVector (vector) values
-			// Construct new DVector
-			DVector va = new DVector(new Util.NativeDataBuffer<double>(new double[] { 1, 2, 3 }));
-			// Cast double[] to DVector
-			double[] vaa = { 1, 2, 3 };
-			DVector vb = new Util.NativeDataBuffer<double>(vaa);
-			// Cast DVector to double[]
-
-			Console.Write(va);
-
-			//// Construction anDNumbercasting of DMatrix (matrix) values
-			//// Construct new DMatrix
-			//DMatrix ma = new DMatrix(new double[,] { { 1, 2 }, { 3, 4 } });
-			//// Cast double[,] to DMatrix
-			//double[,] maa = new double[,] { { 1, 2 }, { 3, 4 } };
-			//DMatrix mb = maa;
-			//// Cast DMatrix to double[,]
-			//double[,] mc = mb;
-
-
+			Console.WriteLine(b.A.Value);
 
 			Console.ReadKey();
 		}
