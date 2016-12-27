@@ -78,7 +78,7 @@ type DNumber =
     | D of number // Primal
     | DF of DNumber * DNumber * uint32 // Primal, tangent, tag
     | DR of DNumber * DNumber ref * TraceOp * uint32 ref * uint32 // Primal, adjoint, parent operation, fan-out counter, tag
-    
+
     /// Primal value of this D
     member d.P = 
         match d with
@@ -2363,7 +2363,7 @@ and DNDArray =
     
     /// Left-multiply matrix `b` by vector `a`
     static member (*) (a : DVector, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Mul_V_M(a, b)
+        let inline ff (a, b) = Backend(b).Mul_V_M(a, b)
         let inline fd (a, b) = a * b
         let inline df_da (cp, ap, at) = at * b
         let inline df_db (cp, bp, bt) = a * bt
@@ -2419,7 +2419,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (*) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Mul_S_M(a, b)
+        let inline ff (a, b) = Backend(b).Mul_S_M(a, b)
         let inline fd (a, b) = a * b
         let inline df_da (cp, ap, at) = at * b
         let inline df_db (cp, bp, bt) = a * bt
@@ -2441,7 +2441,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (/) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> a / v), b)
+        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> a / v), b)
         let inline fd (a, b) = a / b
         let inline df_da (cp, ap, at) = at / b
         let inline df_db (cp, bp, bt) = -bt .* (cp ./ bp) // cp = a / bp
@@ -2464,7 +2464,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (+) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Add_S_M(a, b)
+        let inline ff (a, b) = Backend(b).Add_S_M(a, b)
         let inline fd (a, b) = a + b
         let inline df_da (cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at)
         let inline df_db (cp, bp, bt) = bt
@@ -2486,7 +2486,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (-) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Sub_S_M(a, b)
+        let inline ff (a, b) = Backend(b).Sub_S_M(a, b)
         let inline fd (a, b) = a - b
         let inline df_da (cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at)
         let inline df_db (cp, bp, bt) = -bt
@@ -2509,7 +2509,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Pow(a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> a ** v), b)
+        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> a ** v), b)
         let inline fd (a : DNumber, b : DNDArray) = DNDArray.Pow(a, b)
         let inline df_da (cp, ap : DNumber, at : DNumber) = at * (DNDArray.Pow(ap, b - D number1)) .* b
         let inline df_db (cp, bp, bt) = bt .* cp * log a // cp = a ** bp
@@ -2532,7 +2532,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Atan2(a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> atan2 a v), b)
+        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> atan2 a v), b)
         let inline fd (a : DNumber, b : DNDArray) = DNDArray.Atan2(a, b)
         let inline df_da (cp, ap, at) = (at * b) ./ ((ap * ap) + (b .* b))
         let inline df_db (cp, bp, bt) = (-bt * a) ./ ((a * a) + (bp .* bp))

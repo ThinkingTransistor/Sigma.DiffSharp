@@ -167,8 +167,8 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
     let _shape = shape
     member d.DataBuffer = _buffer
     member d.Shape = _shape
-    member d.Cols = int32 _shape.[0]
-    member d.Rows = int32 _shape.[1]
+    member d.Rows = int32 _shape.[0]
+    member d.Cols = int32 _shape.[1]
     member d.Length = _buffer.Length
     
     member d.Item 
