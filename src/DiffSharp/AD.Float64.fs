@@ -1817,7 +1817,7 @@ and DNDArray =
         let size = m * n
         let data = Array.create size number0
         for i = 0 to a.Length - 1 do
-            data.[i] <- float a.[i] //type dependent operation #TDC
+            data.[i] <- float a.[i] //type dependent operation #TDO
         match a.[0] with
         | D(_) -> DM(ShapedDataBufferView(backend.CreateDataBuffer(data), int64 m, int64 n))
         | DF(_, _, ai) -> 
@@ -2426,8 +2426,8 @@ and DNDArray =
         let inline df_db (cp, bp, bt) = a * bt
         let inline df_dab (cp, ap, at, bp, bt) = (at * bp) + (ap * bt)
         let inline r_d_d (a, b) = Mul_DM_D(b, a)
-        let inline r_d_c (a, b) = Mul_DM_DCons(b, a)
-        let inline r_c_d (a, b) = Mul_DMCons_D(b, a)
+        let inline r_d_c (a, b) = Mul_DMCons_D(b, a)
+        let inline r_c_d (a, b) = Mul_DM_DCons(b, a)
         DNDArray.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (/) (a : DNDArray, b : DNumber) = 
@@ -3834,7 +3834,7 @@ module DOps =
                                 a.A <- DVector.AddItem(a.A, i, d.A)
                                 pushRec ((bx DVector.Zero a) :: t)
                             | Sum_DM(a) -> pushRec ((bx (DM.create a.Rows a.Cols d.A (Backend(a))) a) :: t)
-                            | Item_DM(a, i, j) -> 
+                            | Item_DM(a, i, j) ->  
                                 a.A <- DNDArray.AddItem(a.A, i, j, d.A)
                                 pushRec ((bx DNDArray.Zero a) :: t)
                             | Det_DM(a) -> pushRec ((bx (d.T * d.P * DNDArray.Transpose(DNDArray.Inverse(a))) a) :: t) // Check this
@@ -3860,7 +3860,7 @@ module DOps =
                                     else 
                                         reverseReset alast
                                         pushRec [ (box (r + aprev.A), box alast) ]
-                                pushRec ((bx (bfirst.A) b) :: t) // Propogate converged adjoint back towards the original b at the beginning of the fixed point iteration
+                                pushRec ((bx (bfirst.A) b) :: t) // Propagate converged adjoint back towards the original b at the beginning of the fixed point iteration
                             | _ -> pushRec t
                         else pushRec t
                     | _ -> pushRec t
@@ -4043,8 +4043,10 @@ module DOps =
                             | Mul_Had_DM_DM(a, b) -> pushRec ((bx (d.A .* b.P) a) :: (bx (d.A .* a.P) b) :: t)
                             | Mul_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons) a) :: t)
                             | Mul_DM_D(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (DNDArray.Sum(d.A .* a.P)) b) :: t)
-                            | Mul_DM_DCons(a, cons) -> pushRec ((bx (d.A * cons) a) :: t)
-                            | Mul_DMCons_D(cons, b) -> pushRec ((bx (DNDArray.Sum(d.A .* cons)) b) :: t)
+                            | Mul_DM_DCons(a, cons) -> 
+                                pushRec ((bx (d.A * cons) a) :: t)
+                            | Mul_DMCons_D(cons, b) -> 
+                                pushRec ((bx (DNDArray.Sum(d.A .* cons)) b) :: t)
                             | Mul_Out_DV_DV(a, b) -> 
                                 pushRec ((bx (d.A * b.P) a) :: (bx (DNDArray.Transpose(d.A) * a.P) b) :: t)
                             | Mul_Out_DV_DVCons(a, cons) -> pushRec ((bx (d.A * cons) a) :: t)

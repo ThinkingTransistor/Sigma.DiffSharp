@@ -172,13 +172,15 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
     member d.Length = _buffer.Length
     
     member d.Item 
-        with get (i : int32, j : int32) = _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)]
-        and set (i : int32, j : int32) value = _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)] <- value
+        with get (i : int32, j : int32) = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)]
+        and set (i : int32, j : int32) value = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)] <- value
     
     member d.FlatItem 
         with get (i : int32) = _buffer.SubData.[i]
     member d.ShallowCopy() = ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy shape))
     member d.DeepCopy() = ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy shape))
+
+    override d.ToString() = sprintf "ShapedDataBuffer view %O as %A" buffer shape 
 
 /// Tagger for generating incremental integers
 type Tagger = 
