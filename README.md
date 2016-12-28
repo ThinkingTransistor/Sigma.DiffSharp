@@ -1,6 +1,12 @@
 DiffSharp: Differentiable Functional Programming
 ------------------------------------------------
 
+### Sigma.Diffsharp - Note
+
+Sigma.DiffSharp is a modified version of the DiffSharp library for integration with the [Sigma](https://github.com/GreekDictionary/Sigma) machine learning framework with support for ndarrays, multiple CLI backends and more datat types. Sigma.DiffSharp is not intended to be new release of the original DiffSharp library, but rather an adaption with a restricted featureset for interopability with the Sigma project.
+
+### DiffSharp
+
 DiffSharp is a functional [automatic differentiation](http://en.wikipedia.org/wiki/Automatic_differentiation) (AD) library implemented in the F# language. It supports C# and the other [CLI languages](http://en.wikipedia.org/wiki/List_of_CLI_languages). The library is being developed mainly for research applications in machine learning, by [Atılım Güneş Baydin](http://www.cs.nuim.ie/~gunes/) and [Barak A. Pearlmutter](http://bcl.hamilton.ie/~barak/), within the [Brain and Computation Lab](http://www.bcl.hamilton.ie/), National University of Ireland Maynooth.
 
 Please visit the [project website](http://gbaydin.github.io/DiffSharp/) for detailed documentation and examples.
@@ -8,15 +14,6 @@ Please visit the [project website](http://gbaydin.github.io/DiffSharp/) for deta
 You can come and join the Gitter chat room, if you want to chat with us:
 
 [![Join the chat at https://gitter.im/DiffSharp/DiffSharp](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/DiffSharp/DiffSharp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
-### Project statistics
-
-[![Issue Stats](http://issuestats.com/github/diffsharp/diffsharp/badge/pr?style=flat-square)](http://issuestats.com/github/diffsharp/diffsharp)
-[![Issue Stats](http://issuestats.com/github/diffsharp/diffsharp/badge/issue?style=flat-square)](http://issuestats.com/github/diffsharp/diffsharp)
-
-### Current build status
-
-[![Build status](https://ci.appveyor.com/api/projects/status/wxgs03g5g1affxrs?svg=true)](https://ci.appveyor.com/project/gbaydin/diffsharp)
 
 ### License
 
