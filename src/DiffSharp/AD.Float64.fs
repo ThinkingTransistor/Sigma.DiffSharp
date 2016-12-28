@@ -2861,7 +2861,7 @@ and DNDArray =
     
     static member Variance(a : DNDArray) = 
         let a' = a - DNDArray.Mean(a)
-        DNDArray.Sum(a' .* a') / (a.Length - 1)
+        DNDArray.Sum(a' .* a') / (max (a.Length - 1) 1)
     
     static member StandardDev(a : DNDArray) = DNDArray.Variance(a) |> sqrt
     
