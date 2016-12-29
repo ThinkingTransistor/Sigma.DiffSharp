@@ -65,9 +65,9 @@ let internal number2 = 2.
 
 type number = float
 
-type IDataBuffer = IDataBuffer<number>
+type IDataBuffer = ISigmaDiffDataBuffer<number>
 
-let inline Backend a = global.DiffSharp.Config.GlobalConfig.BackendProvider.GetBackend(a).BackendHandle
+let inline Backend a : Backend<number> = global.DiffSharp.Config.GlobalConfig.BackendProvider.GetBackend(a).BackendHandle
 let inline VisualizationContrast() = global.DiffSharp.Config.GlobalConfig.Float64VisualizationContrast
 let inline FixedPointEpsilon() = global.DiffSharp.Config.GlobalConfig.Float64FixedPointEpsilon
 let inline log10Val() = log10ValFloat64
@@ -78,7 +78,7 @@ type DNumber =
     | D of number // Primal
     | DF of DNumber * DNumber * uint32 // Primal, tangent, tag
     | DR of DNumber * DNumber ref * TraceOp * uint32 ref * uint32 // Primal, adjoint, parent operation, fan-out counter, tag
-    
+
     /// Primal value of this D
     member d.P = 
         match d with
@@ -128,6 +128,15 @@ type DNumber =
             | DF(_, _, _) -> failwith "Cannot set fan-out value of DF."
             | DR(_, _, _, f, _) -> f := v
     
+    member d.Value
+        with get() =
+            let rec prec x = 
+                match x with
+                | D(p) -> p
+                | DF(xp, _, _) -> prec xp
+                | DR(xp, _, _, _, _) -> prec xp
+            prec d
+
     member d.GetForward(t : DNumber, i : uint32) = DF(d, t, i)
     member d.GetReverse(i : uint32) = DR(d, ref (D number0), Noop, ref 0u, i)
     
@@ -625,19 +634,20 @@ and DVector =
             | DVF(ap, at, ai) -> DF(ap.[i], at.[i], ai)
             | DVR(ap, _, _, _, ai) -> DR(ap.[i], ref (D number0), Item_DV(d, i), ref 0u, ai)
     
-    member d.ToRowDM() = 
+    member d.ToRowDM(backend : Backend<number>) = 
         match d with
         | DV(ap) -> 
             DNDArray.OfNumberArray(1, 
                                    seq [ ap.SubData ]
                                    |> Seq.concat
-                                   |> Seq.toArray)
-        | DVF(ap, at, ai) -> DMF(ap.ToRowDM(), at.ToRowDM(), ai)
+                                   |> Seq.toArray,
+                                   backend)
+        | DVF(ap, at, ai) -> DMF(ap.ToRowDM(backend), at.ToRowDM(backend), ai)
         | DVR(ap, _, _, _, ai) -> 
-            let cp = ap.ToRowDM()
+            let cp = ap.ToRowDM(backend)
             DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), RowMatrix_DV(d), ref 0u, ai)
     
-    member d.ToColDM() = DNDArray.Transpose(d.ToRowDM())
+    member d.ToColDM(backend : Backend<number>) = DNDArray.Transpose(d.ToRowDM(backend))
     
     member d.GetSlice(lower, upper) = 
         let l = defaultArg lower 0
@@ -1712,6 +1722,16 @@ and DNDArray =
             | DMF(_, _, _) -> failwith "Cannot set fan-out value of DMF."
             | DMR(_, _, _, f, _) -> f := v
     
+    member d.Buffer = 
+        let rec prec x = 
+            match x with
+            | DM(p) -> p
+            | DMF(xp, _, _) -> prec xp
+            | DMR(xp, _, _, _, _) -> prec xp
+        
+        let data = (prec d)
+        data
+
     member d.GetForward(t : DNDArray, i : uint32) = DMF(d, t, i)
     member d.GetReverse(i : uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols (Backend(d))), Noop, ref 0u, i)
     
@@ -1778,7 +1798,8 @@ and DNDArray =
                                    s
                                    |> Seq.map DVector.op_Explicit
                                    |> Seq.concat
-                                   |> Seq.toArray)
+                                   |> Seq.toArray, 
+                                   Backend(s))
         | DVF(_, _, ai) -> 
             let ap = s |> Seq.map (fun x -> x.P)
             let at = s |> Seq.map (fun x -> x.T)
@@ -1791,32 +1812,31 @@ and DNDArray =
                  ai)
     
     // Creates a matrix with `m` rows from array `a`, filling columns from left to right and rows from top to bottom. The number of columns will be deduced from `m` and the length of `a`. The length of `a` must be an integer multiple of `m`.
-    static member OfDNumberArray(m : int, a : DNumber []) = 
+    static member OfDNumberArray(m : int, a : DNumber [], backend : Backend<number>) = 
         let n = a.Length / m
-        let numbers = Seq.cast<number> a |> Seq.toArray<number>
         let size = m * n
-        let newarray = Array.create size number0
-        for i = 0 to size do
-            newarray.[i] <- numbers.[i]
+        let data = Array.create size number0
+        for i = 0 to a.Length - 1 do
+            data.[i] <- float a.[i] //type dependent operation #TDO
         match a.[0] with
-        | D(_) -> DM(ShapedDataBufferView(NativeDataBuffer<number>(numbers), int64 m, int64 n))
+        | D(_) -> DM(ShapedDataBufferView(backend.CreateDataBuffer(data), int64 m, int64 n))
         | DF(_, _, ai) -> 
             DMF
-                (DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P)), 
-                 DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.T)), ai)
+                (DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P), backend), 
+                 DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.T), backend), ai)
         | DR(_, _, _, _, ai) -> 
-            let cp = DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P))
+            let cp = DNDArray.OfDNumberArray(m, a |> Array.map (fun x -> x.P), backend)
             DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(cp))), Make_DM_ofDs(a), ref 0u, ai)
     
-    static member OfNumberArray(m : int, a : number []) = 
+    static member OfNumberArray(m : int, a : number [], backend : Backend<number>) = 
         let n = a.Length / m
         let size = m * n
         let mutable result = a
         if (m % a.Length <> 0) then 
             let result = Array.create size number0
-            for i = 0 to a.Length do
+            for i = 0 to a.Length - 1 do
                 result.[i] <- a.[i]
-        DM(ShapedDataBufferView(NativeDataBuffer<number>(result), int64 m, int64 n))
+        DM(ShapedDataBufferView(backend.CreateDataBuffer(result), int64 m, int64 n))
     
     static member inline Op_DM_DM(a, ff, fd, df, r) = 
         match a with
@@ -2344,7 +2364,7 @@ and DNDArray =
     
     /// Left-multiply matrix `b` by vector `a`
     static member (*) (a : DVector, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Mul_V_M(a, b)
+        let inline ff (a, b) = Backend(b).Mul_V_M(a, b)
         let inline fd (a, b) = a * b
         let inline df_da (cp, ap, at) = at * b
         let inline df_db (cp, bp, bt) = a * bt
@@ -2400,14 +2420,14 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (*) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Mul_S_M(a, b)
+        let inline ff (a, b) = Backend(b).Mul_S_M(a, b)
         let inline fd (a, b) = a * b
         let inline df_da (cp, ap, at) = at * b
         let inline df_db (cp, bp, bt) = a * bt
         let inline df_dab (cp, ap, at, bp, bt) = (at * bp) + (ap * bt)
         let inline r_d_d (a, b) = Mul_DM_D(b, a)
-        let inline r_d_c (a, b) = Mul_DM_DCons(b, a)
-        let inline r_c_d (a, b) = Mul_DMCons_D(b, a)
+        let inline r_d_c (a, b) = Mul_DMCons_D(b, a)
+        let inline r_c_d (a, b) = Mul_DM_DCons(b, a)
         DNDArray.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (/) (a : DNDArray, b : DNumber) = 
@@ -2422,7 +2442,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (/) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> a / v), b)
+        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> a / v), b)
         let inline fd (a, b) = a / b
         let inline df_da (cp, ap, at) = at / b
         let inline df_db (cp, bp, bt) = -bt .* (cp ./ bp) // cp = a / bp
@@ -2434,10 +2454,11 @@ and DNDArray =
         DNDArray.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (+) (a : DNDArray, b : DNumber) = 
-        let inline ff (a, b) = Backend(a).Add_S_M(b, a)
+        let backend = Backend(a)
+        let inline ff (a, b) = backend.Add_S_M(b, a)
         let inline fd (a, b) = a + b
         let inline df_da (cp, ap, at) = at
-        let inline df_db (cp, bp, bt) = DNDArray.OfDNumberArray(a.Rows, Array.create (a.Rows * a.Cols) bt)
+        let inline df_db (cp, bp, bt) = DNDArray.OfDNumberArray(a.Rows, Array.create (a.Rows * a.Cols) bt, backend)
         let inline df_dab (cp, ap, at, bp, bt) = at + bt
         let inline r_d_d (a, b) = Add_DM_D(a, b)
         let inline r_d_c (a, b) = Add_DM_DCons(a)
@@ -2445,9 +2466,10 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (+) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Add_S_M(a, b)
+        let backend = Backend(b)
+        let inline ff (a, b) = backend.Add_S_M(a, b)
         let inline fd (a, b) = a + b
-        let inline df_da (cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at)
+        let inline df_da (cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at, backend)
         let inline df_db (cp, bp, bt) = bt
         let inline df_dab (cp, ap, at, bp, bt) = at + bt
         let inline r_d_d (a, b) = Add_DM_D(b, a)
@@ -2456,10 +2478,11 @@ and DNDArray =
         DNDArray.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (-) (a : DNDArray, b : DNumber) = 
+        let backend = Backend(a)
         let inline ff (a, b) = Backend(a).Sub_M_S(a, b)
         let inline fd (a, b) = a - b
         let inline df_da (cp, ap, at) = at
-        let inline df_db (cp, bp, bt) = DNDArray.OfDNumberArray(a.Rows, Array.create (a.Rows * a.Cols) -bt)
+        let inline df_db (cp, bp, bt) = DNDArray.OfDNumberArray(a.Rows, Array.create (a.Rows * a.Cols) -bt, backend)
         let inline df_dab (cp, ap, at, bp, bt) = at - bt
         let inline r_d_d (a, b) = Sub_DM_D(a, b)
         let inline r_d_c (a, b) = Sub_DM_DCons(a)
@@ -2467,9 +2490,10 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (-) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Sub_S_M(a, b)
+        let backend = Backend(b)
+        let inline ff (a, b) = backend.Sub_S_M(a, b)
         let inline fd (a, b) = a - b
-        let inline df_da (cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at)
+        let inline df_da (cp, ap, at) = DNDArray.OfDNumberArray(b.Rows, Array.create (b.Rows * b.Cols) at, backend)
         let inline df_db (cp, bp, bt) = -bt
         let inline df_dab (cp, ap, at, bp, bt) = at - bt
         let inline r_d_d (a, b) = Sub_D_DM(a, b)
@@ -2490,7 +2514,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Pow(a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> a ** v), b)
+        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> a ** v), b)
         let inline fd (a : DNumber, b : DNDArray) = DNDArray.Pow(a, b)
         let inline df_da (cp, ap : DNumber, at : DNumber) = at * (DNDArray.Pow(ap, b - D number1)) .* b
         let inline df_db (cp, bp, bt) = bt .* cp * log a // cp = a ** bp
@@ -2513,7 +2537,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Atan2(a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> atan2 a v), b)
+        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> atan2 a v), b)
         let inline fd (a : DNumber, b : DNDArray) = DNDArray.Atan2(a, b)
         let inline df_da (cp, ap, at) = (at * b) ./ ((ap * ap) + (b .* b))
         let inline df_db (cp, bp, bt) = (-bt * a) ./ ((a * a) + (bp .* bp))
@@ -2837,7 +2861,7 @@ and DNDArray =
     
     static member Variance(a : DNDArray) = 
         let a' = a - DNDArray.Mean(a)
-        DNDArray.Sum(a' .* a') / (a.Length - 1)
+        DNDArray.Sum(a' .* a') / (max (a.Length - 1) 1)
     
     static member StandardDev(a : DNDArray) = DNDArray.Variance(a) |> sqrt
     
@@ -3159,9 +3183,9 @@ module DV =
     let inline create n (v : 'a) (backend : Backend<number>) = 
         let at = typeof<'a>
         if at.Equals(typeof<DNumber>) then DVector.OfArray(Array.create n (unbox<DNumber> (box v)))
-        elif at.Equals(typeof<number>) then DV(new NativeDataBuffer<number>(Array.create n (unbox<number> (box v))))
+        elif at.Equals(typeof<number>) then DV(backend.CreateDataBuffer(Array.create n (unbox<number> (box v))))
         elif at.Equals(typeof<int>) then 
-            DV(new NativeDataBuffer<number>(Array.create n (unbox<int> (box v) |> toNumber)))
+            DV(backend.CreateDataBuffer(Array.create n (unbox<int> (box v) |> toNumber)))
         else fail_with_invalid_type_message()
     
     /// Creates a vector with `n` zero elements
@@ -3295,7 +3319,7 @@ module DV =
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module DM = 
     /// Creates a matrix with `m` rows from array `a`
-    let inline ofArray m a = DNDArray.OfDNumberArray(m, a)
+    let inline ofArray m a (b : Backend<number>) = DNDArray.OfDNumberArray(m, a, b)
     
     /// Converts matrix `m` into an array by stacking its rows
     let inline toArray (m : DNDArray) = DNDArray.ReshapeToDV(m) |> DV.toArray
@@ -3325,11 +3349,11 @@ module DM =
     let inline rows (m : DNDArray) = m.Rows
     
     /// Creates a matrix with `m` rows and `n` columns, where all entries have value `v`
-    let inline create m n (v : 'a) = 
+    let inline create m n (v : 'a) (b : Backend<number>) = 
         let at = typeof<'a>
-        if at.Equals(typeof<DNumber>) then DNDArray.OfDNumberArray(m, Array.create (m * n) (unbox<DNumber> (box v)))
-        elif at.Equals(typeof<number>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number> (box v)))
-        elif at.Equals(typeof<int>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number> (box v)))
+        if at.Equals(typeof<DNumber>) then DNDArray.OfDNumberArray(m, Array.create (m * n) (unbox<DNumber> (box v)), b)
+        elif at.Equals(typeof<number>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number> (box v)), b)
+        elif at.Equals(typeof<int>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number> (box v)), b)
         else fail_with_invalid_type_message()
     
     /// Creates a matrix with `m` rows and `n` columns, where all entries are zero
@@ -3345,18 +3369,18 @@ module DM =
     let isEmpty (m : DNDArray) = m.Length = 0
     
     /// Creates a matrix with `m` rows and `n` columns, where each element is given by function `f`
-    let inline init m n (f : int -> int -> 'a) = 
+    let inline init m n (f : int -> int -> 'a) (b : Backend<number>) = 
         let at = typeof<'a>
         let frel i = f (i / m) (i % m)
         if at.Equals(typeof<DNumber>) then 
             let numbers = Seq.cast<DNumber> (Array.init (m * n) frel) |> Seq.toArray
-            DNDArray.OfDNumberArray(m, numbers)
+            DNDArray.OfDNumberArray(m, numbers, b)
         elif at.Equals(typeof<number>) then 
             let numbers = Seq.cast<number> (Array.init (m * n) frel) |> Seq.toArray
-            DNDArray.OfNumberArray(m, numbers)
+            DNDArray.OfNumberArray(m, numbers, b)
         elif at.Equals(typeof<int>) then 
             let numbers = Seq.cast<number> (Array.init (m * n) frel) |> Seq.toArray
-            DNDArray.OfNumberArray(m, numbers)
+            DNDArray.OfNumberArray(m, numbers, b)
         else fail_with_invalid_type_message()
     
     /// Inverse of matrix `m`
@@ -3809,8 +3833,8 @@ module DOps =
                             | Item_DV(a, i) -> 
                                 a.A <- DVector.AddItem(a.A, i, d.A)
                                 pushRec ((bx DVector.Zero a) :: t)
-                            | Sum_DM(a) -> pushRec ((bx (DM.create a.Rows a.Cols d.A) a) :: t)
-                            | Item_DM(a, i, j) -> 
+                            | Sum_DM(a) -> pushRec ((bx (DM.create a.Rows a.Cols d.A (Backend(a))) a) :: t)
+                            | Item_DM(a, i, j) ->  
                                 a.A <- DNDArray.AddItem(a.A, i, j, d.A)
                                 pushRec ((bx DNDArray.Zero a) :: t)
                             | Det_DM(a) -> pushRec ((bx (d.T * d.P * DNDArray.Transpose(DNDArray.Inverse(a))) a) :: t) // Check this
@@ -3836,7 +3860,7 @@ module DOps =
                                     else 
                                         reverseReset alast
                                         pushRec [ (box (r + aprev.A), box alast) ]
-                                pushRec ((bx (bfirst.A) b) :: t) // Propogate converged adjoint back towards the original b at the beginning of the fixed point iteration
+                                pushRec ((bx (bfirst.A) b) :: t) // Propagate converged adjoint back towards the original b at the beginning of the fixed point iteration
                             | _ -> pushRec t
                         else pushRec t
                     | _ -> pushRec t
@@ -4019,8 +4043,10 @@ module DOps =
                             | Mul_Had_DM_DM(a, b) -> pushRec ((bx (d.A .* b.P) a) :: (bx (d.A .* a.P) b) :: t)
                             | Mul_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons) a) :: t)
                             | Mul_DM_D(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (DNDArray.Sum(d.A .* a.P)) b) :: t)
-                            | Mul_DM_DCons(a, cons) -> pushRec ((bx (d.A * cons) a) :: t)
-                            | Mul_DMCons_D(cons, b) -> pushRec ((bx (DNDArray.Sum(d.A .* cons)) b) :: t)
+                            | Mul_DM_DCons(a, cons) -> 
+                                pushRec ((bx (d.A * cons) a) :: t)
+                            | Mul_DMCons_D(cons, b) -> 
+                                pushRec ((bx (DNDArray.Sum(d.A .* cons)) b) :: t)
                             | Mul_Out_DV_DV(a, b) -> 
                                 pushRec ((bx (d.A * b.P) a) :: (bx (DNDArray.Transpose(d.A) * a.P) b) :: t)
                             | Mul_Out_DV_DVCons(a, cons) -> pushRec ((bx (d.A * cons) a) :: t)

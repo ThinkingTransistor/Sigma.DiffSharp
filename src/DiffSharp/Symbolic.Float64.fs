@@ -48,7 +48,7 @@ open DiffSharp.Util
 open DiffSharp.Config
 
 type number = float
-type IDataBuffer = IDataBuffer<number>
+type IDataBuffer = ISigmaDiffDataBuffer<number>
 
 /// Symbolic differentiation expression operations module (automatically opened)
 [<AutoOpen>]

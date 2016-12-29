@@ -43,19 +43,21 @@ open System
 
 type number = float32
 
-type IDataBuffer = IDataBuffer<number>
+type IDataBuffer = ISigmaDiffDataBuffer<number>
 
 type internal ADD = DiffSharp.AD.Float32.DNumber
 
 and DNumber(x : ADD) = 
     new(x : float32) = DNumber(ADD.D(x))
-    member internal this.asADD = x
+    member this.asADD = x
     static member internal ADDtoD(x : ADD) = new DNumber(x)
-    static member internal DtoADD(x : DNumber) = x.asADD
+    static member internal DtoADD(x : DNumber) = x.asADD 
     member d.P = d.asADD.P |> DNumber.ADDtoD
     member d.T = d.asADD.T |> DNumber.ADDtoD
     member d.A = d.asADD.A |> DNumber.ADDtoD
-    
+    member d.Value = d.asADD.Value 
+    member d.GetReverse(i : uint32) = d.asADD.GetReverse(i) |> DNumber.ADDtoD
+
     override d.ToString() = 
         let rec s (d : ADD) = 
             match d with
@@ -136,6 +138,8 @@ and DNumber(x : ADD) =
     static member Ceiling(a : DNumber) = DNumber(ceil (a.asADD))
     static member Round(a : DNumber) = DNumber(round (a.asADD))
     static member Sign(a : DNumber) = DNumber(ADD.Sign(a.asADD))
+    static member Sigmoid(a : DNumber) = DNumber(ADD.Sigmoid(a.asADD))
+    static member ReLU(a : DNumber) = DNumber(ADD.ReLU(a.asADD))
     static member SoftPlus(a : DNumber) = DNumber(ADD.SoftPlus(a.asADD))
     static member SoftSign(a : DNumber) = DNumber(ADD.SoftSign(a.asADD))
     static member Max(a : DNumber, b : DNumber) = DNumber(ADD.Max(a.asADD, b.asADD))
@@ -146,15 +150,17 @@ and internal ADDV = DiffSharp.AD.Float32.DVector
 and DVector(v : ADDV) = 
     new(v : IDataBuffer) = DVector(ADDV.DV(v))
     new(v : DNumber []) = DVector(DiffSharp.AD.Float32.DOps.toDV (v |> Array.map DNumber.DtoADD))
-    member internal this.asADDV = v
+    member this.asADDV = v
     static member internal ADDVtoDV(v : ADDV) = new DVector(v)
     static member internal DVtoADDV(v : DVector) = v.asADDV
     member d.P = d.asADDV.P |> DVector.ADDVtoDV
     member d.T = d.asADDV.T |> DVector.ADDVtoDV
     member d.A = d.asADDV.A |> DVector.ADDVtoDV
+    member d.Buffer = d.asADDV.Buffer
     member d.Item 
         with get i = d.asADDV.[i] |> DNumber.ADDtoD
-    
+    member d.GetReverse(i : uint32) = d.asADDV.GetReverse(i) |> DVector.ADDVtoDV
+
     override d.ToString() = 
         let rec s (d : ADDV) = 
             match d with
@@ -260,15 +266,17 @@ and DVector(v : ADDV) =
 and ADDND = DiffSharp.AD.Float32.DNDArray
 
 and DNDArray(m : ADDND) = 
-    new(data : IDataBuffer<number>, [<ParamArray>] shape : int64 []) = 
+    new(data : ISigmaDiffDataBuffer<number>, [<ParamArray>] shape : int64 []) = 
         DNDArray(ADDND.DM(ShapedDataBufferView<number>(data, shape)))
-    member internal this.asADDND = m
-    static member internal ADDMtoDM(x : ADDND) = new DNDArray(x)
-    static member internal DMtoADDM(x : DNDArray) = x.asADDND
-    member d.P = d.asADDND.P |> DNDArray.ADDMtoDM
-    member d.T = d.asADDND.T |> DNDArray.ADDMtoDM
-    member d.A = d.asADDND.A |> DNDArray.ADDMtoDM
-    
+    member this.asADDND = m
+    static member internal ADDNDtoDND(x : ADDND) = new DNDArray(x)
+    static member internal DMtoADDM(x : DNDArray) = x.asADDND      
+    member d.P = d.asADDND.P |> DNDArray.ADDNDtoDND
+    member d.T = d.asADDND.T |> DNDArray.ADDNDtoDND
+    member d.A = d.asADDND.A |> DNDArray.ADDNDtoDND
+    member d.Buffer = d.asADDND.Buffer
+    member d.GetReverse(i : uint32) = d.asADDND.GetReverse(i) |> DNDArray.ADDNDtoDND
+
     override d.ToString() = 
         let rec s (d : ADDND) = 
             match d with
@@ -354,7 +362,7 @@ and DNDArray(m : ADDND) =
     static member Diagonal(a : DNDArray) = DVector(ADDND.Diagonal(a.asADDND))
     static member Trace(a : DNDArray) = DNumber(ADDND.Trace(a.asADDND))
     static member Solve(a : DNDArray, b : DVector) = DVector(ADDND.Solve(a.asADDND, b.asADDV))
-    //    static member SolveSymmetric (a:DNDArray, b:DVector) = DVector(ADDND.SolveSymmetric(a.asADDND, b.asADDV))
+    static member SolveSymmetric(a : DNDArray, b : DVector) = DVector(ADDND.SolveSymmetric(a.asADDND, b.asADDV))
     static member Inverse(a : DNDArray) = DNDArray(ADDND.Inverse(a.asADDND))
     static member Det(a : DNDArray) = DNumber(ADDND.Det(a.asADDND))
     static member ReLU(a : DNDArray) = DNDArray(ADDND.ReLU(a.asADDND))
@@ -475,11 +483,11 @@ type AD =
                                        >> (DiffSharp.AD.Float32.DiffOps.jacobian (DVector.ADDVtoDV
                                                                                   >> f.Invoke
                                                                                   >> DVector.DVtoADDV))
-                                       >> DNDArray.ADDMtoDM)
+                                       >> DNDArray.ADDNDtoDND)
     
     /// Jacobian of a vector-to-vector function `f`, at point `x`
     static member Jacobian(f : System.Func<DVector, DVector>, x : DVector) = 
-        DNDArray.ADDMtoDM <| DiffSharp.AD.Float32.DiffOps.jacobian (DVector.ADDVtoDV
+        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float32.DiffOps.jacobian (DVector.ADDVtoDV
                                                                     >> f.Invoke
                                                                     >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
     
@@ -489,11 +497,11 @@ type AD =
                                        >> (DiffSharp.AD.Float32.DiffOps.jacobianT (DVector.ADDVtoDV
                                                                                    >> f.Invoke
                                                                                    >> DVector.DVtoADDV))
-                                       >> DNDArray.ADDMtoDM)
+                                       >> DNDArray.ADDNDtoDND)
     
     /// Transposed Jacobian of a vector-to-vector function `f`, at point `x`
     static member JacobianT(f : System.Func<DVector, DVector>, x : DVector) = 
-        DNDArray.ADDMtoDM <| DiffSharp.AD.Float32.DiffOps.jacobianT (DVector.ADDVtoDV
+        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float32.DiffOps.jacobianT (DVector.ADDVtoDV
                                                                      >> f.Invoke
                                                                      >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
     
@@ -503,11 +511,11 @@ type AD =
                                        >> (DiffSharp.AD.Float32.DiffOps.hessian (DVector.ADDVtoDV
                                                                                  >> f.Invoke
                                                                                  >> DNumber.DtoADD))
-                                       >> DNDArray.ADDMtoDM)
+                                       >> DNDArray.ADDNDtoDND)
     
     /// Hessian of a vector-to-scalar function `f`, at point `x`
     static member Hessian(f : System.Func<DVector, DNumber>, x : DVector) = 
-        DNDArray.ADDMtoDM <| DiffSharp.AD.Float32.DiffOps.hessian (DVector.ADDVtoDV
+        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float32.DiffOps.hessian (DVector.ADDVtoDV
                                                                    >> f.Invoke
                                                                    >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
     
@@ -606,6 +614,8 @@ type AD =
     /// Returns the larger of two specified numbers.
     /// Returns the smaller of two numbers.
     static member inline Min(a : 'T, b : 'T) = min a b
+
+    static member inline ReverseProp(v : obj, d : obj) = DiffSharp.AD.Float32.DOps.reverseProp v d 
     
     static member inline LogSumExp(a : 'T) = (^T : (static member LogSumExp : ^T -> ^U) a)
     static member inline SoftPlus(a : 'T) = (^T : (static member SoftPlus : ^T -> ^T) a)
@@ -632,6 +642,7 @@ type AD =
     static member Solve(a : DNDArray, b : DVector) = DVector(ADDND.Solve(a.asADDND, b.asADDV))
     static member SolveSymmetric(a : DNDArray, b : DVector) = DVector(ADDND.SolveSymmetric(a.asADDND, b.asADDV))
     static member Inverse(a : DNDArray) = DNDArray(ADDND.Inverse(a.asADDND))
+
 /// Numerical differentiation module
 //type Numerical =
 //    /// First derivative of a scalar-to-scalar function `f`

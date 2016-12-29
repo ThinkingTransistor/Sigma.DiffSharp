@@ -43,7 +43,7 @@ open DiffSharp.Config
 
 type number = float32
 
-type IDataBuffer = IDataBuffer<number>
+type IDataBuffer = ISigmaDiffDataBuffer<number>
 
 let inline FixedPointEpsilon() = global.DiffSharp.Config.GlobalConfig.Float32FixedPointEpsilon
 let inline FixedPointEpsilonRec() = global.DiffSharp.Config.GlobalConfig.Float32EpsilonRec

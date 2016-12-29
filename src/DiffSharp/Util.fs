@@ -130,48 +130,57 @@ module ErrorMessages =
     let InvalidArgVMRows() = invalidArg "" "Length of vector must match number of rows of matrix."
     let InvalidArgVMCols() = invalidArg "" "Length of vector must match number of columns of matrix."
 
-[<AbstractClass>]
-type IDataBuffer<'T>(data : 'T [], length : int32, offset : int32) = 
+type ISigmaDiffDataBuffer<'T> = 
     abstract Length : int32
     abstract Offset : int32
-    abstract Data : 'T []
-    member d.SubData = d.Data.[d.Offset..(d.Offset + d.Length - 1)]
-    new(data : 'T []) = IDataBuffer(data, 0, data.Length)
-    abstract GetValues : int32 -> int32 -> IDataBuffer<'T>
-    abstract DeepCopy : unit -> IDataBuffer<'T>
-    abstract ShallowCopy : unit -> IDataBuffer<'T>
+    abstract Data : 'T[]
+    abstract SubData : 'T[]
+    abstract GetValues : int32 -> int32 -> ISigmaDiffDataBuffer<'T>
+    abstract DeepCopy : unit -> ISigmaDiffDataBuffer<'T>
+    abstract ShallowCopy : unit -> ISigmaDiffDataBuffer<'T>
 
-type NativeDataBuffer<'T>(data : 'T [], length : int32, offset : int32) = 
-    inherit IDataBuffer<'T>(data, length, offset)
+type DataBufferSubDataUtils =
+    static member SubData<'T> (data : 'T[]) (offset : int32) (length : int32) =
+        data.[offset..(offset + length - 1)]
+
+type NativeDataBuffer<'T>(data : 'T [], offset : int32, length : int32) = 
+
     let mutable _length = length
     let mutable _offset = offset
     let mutable _data = data
     new(data : 'T []) = NativeDataBuffer<'T>(data, 0, data.Length)
-    override d.Length = _length
-    override d.Offset = _offset
-    override d.Data = _data
-    override d.GetValues startIndex length = NativeDataBuffer<'T>(data, length, d.Offset + offset) :> IDataBuffer<'T>
-    override d.ShallowCopy() = NativeDataBuffer<'T>(data, length, offset) :> IDataBuffer<'T>
-    override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), length, offset) :> IDataBuffer<'T>
-    override d.ToString() = sprintf "DataBuffer %A" d.SubData
 
-type ShapedDataBufferView<'T>(buffer : IDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
+    interface ISigmaDiffDataBuffer<'T> with 
+        override d.Length = _length
+        override d.Offset = _offset
+        override d.Data = _data
+        override d.SubData =  _data.[_offset..(_offset + _length - 1)]
+        override d.GetValues startIndex length = NativeDataBuffer<'T>(data, _offset + offset, length) :> ISigmaDiffDataBuffer<'T>
+        override d.ShallowCopy() = NativeDataBuffer<'T>(data, offset, length) :> ISigmaDiffDataBuffer<'T>
+        override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), offset, length) :> ISigmaDiffDataBuffer<'T>
+        end
+
+     override d.ToString() = sprintf "DataBuffer-%i %A" _length (d :> ISigmaDiffDataBuffer<'T>).SubData
+
+type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
     let _buffer = buffer
     let _shape = shape
     member d.DataBuffer = _buffer
     member d.Shape = _shape
-    member d.Cols = int32 _shape.[0]
-    member d.Rows = int32 _shape.[1]
+    member d.Rows = int32 _shape.[0]
+    member d.Cols = int32 _shape.[1]
     member d.Length = _buffer.Length
     
     member d.Item 
-        with get (i : int32, j : int32) = _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)]
-        and set (i : int32, j : int32) value = _buffer.SubData.[_buffer.Offset + (i * d.Rows + j)] <- value
+        with get (i : int32, j : int32) = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)]
+        and set (i : int32, j : int32) value = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)] <- value
     
     member d.FlatItem 
         with get (i : int32) = _buffer.SubData.[i]
     member d.ShallowCopy() = ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy shape))
     member d.DeepCopy() = ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy shape))
+
+    override d.ToString() = sprintf "ShapedDataBuffer view %O as %A" buffer shape 
 
 /// Tagger for generating incremental integers
 type Tagger = 

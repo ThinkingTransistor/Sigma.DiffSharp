@@ -85,7 +85,10 @@ type GlobalConfig() =
                 VisualisationContrast = 1.2 }
           GrayscalePalette = GrayscalePaletteASCII }
     
-    static member BackendProvider : IBackendProvider = DefaultBackendProvider() :> IBackendProvider
+    static let mutable _backendProvider = DefaultBackendProvider() :> IBackendProvider
+    static member BackendProvider
+        with get() = _backendProvider
+        and set value = _backendProvider <- value
     static member Float32BackendConfig = C.BackendConfigFloat32
     static member Float64BackendConfig = C.BackendConfigFloat64
     static member Float32Backend = C.BackendConfigFloat32.BackendHandle
