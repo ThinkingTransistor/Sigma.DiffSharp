@@ -276,6 +276,8 @@ and DNDArray(m : ADDND) =
     member d.A = d.asADDND.A |> DNDArray.ADDNDtoDND
     member d.Buffer = d.asADDND.Buffer
     member d.GetReverse(i : uint32) = d.asADDND.GetReverse(i) |> DNDArray.ADDNDtoDND
+    member d.ShallowCopy() = d.asADDND.ShallowCopy() |> DNDArray.ADDNDtoDND
+    member d.DeepCopy() = d.asADDND.DeepCopy() |> DNDArray.ADDNDtoDND
 
     override d.ToString() = 
         let rec s (d : ADDND) = 
