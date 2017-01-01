@@ -386,6 +386,8 @@ and DNDArray(m : ADDND) =
     static member Variance(a : DNDArray) = DNumber(ADDND.Variance(a.asADDND))
     static member Normalize(a : DNDArray) = DNDArray(ADDND.Normalize(a.asADDND))
     static member Standardize(a : DNDArray) = DNDArray(ADDND.Standardize(a.asADDND))
+    static member OfDNumber(a : DNumber, backend : Backend<number>) = DNDArray(ADDND.OfDNumberArray(1, (Array.create 1 a.asADD), backend))
+    static member ToDNumber(a : DNDArray, flatIndex : int32) = DNumber(a.asADDND.FlatItem(flatIndex))
 
 /// Nested forward and reverse mode automatic differentiation module
 type AD = 
