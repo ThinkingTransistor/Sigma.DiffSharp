@@ -40,6 +40,7 @@ namespace DiffSharp.Interop.Float32
 
 open DiffSharp.Util
 open System
+open DiffSharp.Backend
 
 type number = float32
 
@@ -276,6 +277,8 @@ and DNDArray(m : ADDND) =
     member d.A = d.asADDND.A |> DNDArray.ADDNDtoDND
     member d.Buffer = d.asADDND.Buffer
     member d.GetReverse(i : uint32) = d.asADDND.GetReverse(i) |> DNDArray.ADDNDtoDND
+    member d.ShallowCopy() = d.asADDND.ShallowCopy() |> DNDArray.ADDNDtoDND
+    member d.DeepCopy() = d.asADDND.DeepCopy() |> DNDArray.ADDNDtoDND
 
     override d.ToString() = 
         let rec s (d : ADDND) = 
@@ -368,6 +371,7 @@ and DNDArray(m : ADDND) =
     static member ReLU(a : DNDArray) = DNDArray(ADDND.ReLU(a.asADDND))
     static member Sigmoid(a : DNDArray) = DNDArray(ADDND.Sigmoid(a.asADDND))
     static member SoftPlus(a : DNDArray) = DNDArray(ADDND.SoftPlus(a.asADDND))
+    static member SoftMax(a : DNDArray) = DNDArray(ADDND.SoftMax(a.asADDND))
     static member SoftSign(a : DNDArray) = DNDArray(ADDND.SoftSign(a.asADDND))
     static member Max(a : DNDArray, b : DNDArray) = DNDArray(ADDND.Max(a.asADDND, b.asADDND))
     static member Min(a : DNDArray, b : DNDArray) = DNDArray(ADDND.Min(a.asADDND, b.asADDND))
@@ -382,6 +386,8 @@ and DNDArray(m : ADDND) =
     static member Variance(a : DNDArray) = DNumber(ADDND.Variance(a.asADDND))
     static member Normalize(a : DNDArray) = DNDArray(ADDND.Normalize(a.asADDND))
     static member Standardize(a : DNDArray) = DNDArray(ADDND.Standardize(a.asADDND))
+    static member OfDNumber(a : DNumber, backend : Backend<number>) = DNDArray(ADDND.OfDNumberArray(1, (Array.create 1 a.asADD), backend))
+    static member ToDNumber(a : DNDArray, flatIndex : int32) = DNumber(a.asADDND.FlatItem(flatIndex))
 
 /// Nested forward and reverse mode automatic differentiation module
 type AD = 

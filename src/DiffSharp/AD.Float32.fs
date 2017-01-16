@@ -1741,6 +1741,12 @@ and DNDArray =
         | DMF(ap, at, ai) -> DMF(ap.DeepCopy(), at.DeepCopy(), ai)
         | DMR(ap, aa, at, af, ai) -> DMR(ap.DeepCopy(), ref ((!aa).DeepCopy()), at, ref (!af), ai)
     
+    member d.ShallowCopy() = 
+        match d with
+        | DM(ap) -> DM(ap.ShallowCopy())
+        | DMF(ap, at, ai) -> DMF(ap.ShallowCopy(), at.ShallowCopy(), ai)
+        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+
     member d.Length = 
         match d with
         | DM(ap) -> ap.Length
@@ -2856,6 +2862,10 @@ and DNDArray =
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member SoftPlus(a : DNDArray) = log (number1 + exp a)
+    static member SoftMax(a : DNDArray) = 
+        let a' = a - DNDArray.Max(a)
+        let e = exp a'
+        e / DNDArray.Sum(e)
     static member SoftSign(a : DNDArray) = a ./ (number1 + abs a)
     static member Mean(a : DNDArray) = DNDArray.Sum(a) / a.Length
     
