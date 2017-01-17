@@ -1735,6 +1735,12 @@ and DNDArray =
     member d.GetForward(t : DNDArray, i : uint32) = DMF(d, t, i)
     member d.GetReverse(i : uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols (Backend(d))), Noop, ref 0u, i)
     
+    member d.ShallowCopy() = 
+        match d with
+        | DM(ap) -> DM(ap.ShallowCopy())
+        | DMF(ap, at, ai) -> DMF(ap.ShallowCopy(), at.ShallowCopy(), ai)
+        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+
     member d.DeepCopy() = 
         match d with
         | DM(ap) -> DM(ap)
