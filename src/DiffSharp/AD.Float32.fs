@@ -1746,12 +1746,6 @@ and DNDArray =
         | DM(ap) -> DM(ap)
         | DMF(ap, at, ai) -> DMF(ap.DeepCopy(), at.DeepCopy(), ai)
         | DMR(ap, aa, at, af, ai) -> DMR(ap.DeepCopy(), ref ((!aa).DeepCopy()), at, ref (!af), ai)
-    
-    member d.ShallowCopy() = 
-        match d with
-        | DM(ap) -> DM(ap.ShallowCopy())
-        | DMF(ap, at, ai) -> DMF(ap.ShallowCopy(), at.ShallowCopy(), ai)
-        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
 
     member d.Length = 
         match d with

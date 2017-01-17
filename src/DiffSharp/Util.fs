@@ -167,7 +167,10 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
     let mutable _shape = shape
     member d.DataBuffer = _buffer
     member d.Rows = int32 _shape.[0]
-    member d.Cols = int32 _shape.[1]
+    member d.Cols = 
+        if (_shape.Length <= 1) then
+            failwithf "Internal error: Requested columns of shaped data buffer view without columns dimension (_shape: %A)" _shape
+        int32 _shape.[1]
     member d.Length = _buffer.Length
         
     member d.Shape
