@@ -1747,6 +1747,12 @@ and DNDArray =
         | DMF(ap, at, ai) -> DMF(ap.DeepCopy(), at.DeepCopy(), ai)
         | DMR(ap, aa, at, af, ai) -> DMR(ap.DeepCopy(), ref ((!aa).DeepCopy()), at, ref (!af), ai)
     
+    member d.ShallowCopy() = 
+        match d with
+        | DM(ap) -> DM(ap.ShallowCopy())
+        | DMF(ap, at, ai) -> DMF(ap.ShallowCopy(), at.ShallowCopy(), ai)
+        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+
     member d.Length = 
         match d with
         | DM(ap) -> ap.Length
@@ -2862,6 +2868,10 @@ and DNDArray =
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member SoftPlus(a : DNDArray) = log (number1 + exp a)
+    static member SoftMax(a : DNDArray) = 
+        let a' = a - DNDArray.Max(a)
+        let e = exp a'
+        e / DNDArray.Sum(e)
     static member SoftSign(a : DNDArray) = a ./ (number1 + abs a)
     static member Mean(a : DNDArray) = DNDArray.Sum(a) / a.Length
     
@@ -2893,7 +2903,7 @@ and DNDArray =
     static member MaxIndex(a : DNDArray) = 
         let mutable maxi = 0
         let mutable maxv = a.FlatItem(0)
-        for i = 0 to a.Length do
+        for i = 0 to a.Length - 1 do
             if (a.FlatItem(i) > maxv) then 
                 do maxv <- a.FlatItem(i)
                 do maxi <- i
@@ -2907,7 +2917,7 @@ and DNDArray =
     static member MinIndex(a : DNDArray) = 
         let mutable mini = 0
         let mutable minv = a.FlatItem(0)
-        for i = 0 to a.Length do
+        for i = 0 to a.Length - 1 do
             if (a.FlatItem(i) < minv) then 
                 do minv <- a.FlatItem(i)
                 do mini <- i

@@ -372,6 +372,7 @@ and DNDArray(m : ADDND) =
     static member ReLU(a : DNDArray) = DNDArray(ADDND.ReLU(a.asADDND))
     static member Sigmoid(a : DNDArray) = DNDArray(ADDND.Sigmoid(a.asADDND))
     static member SoftPlus(a : DNDArray) = DNDArray(ADDND.SoftPlus(a.asADDND))
+    static member SoftMax(a : DNDArray) = DNDArray(ADDND.SoftMax(a.asADDND))
     static member SoftSign(a : DNDArray) = DNDArray(ADDND.SoftSign(a.asADDND))
     static member Max(a : DNDArray, b : DNDArray) = DNDArray(ADDND.Max(a.asADDND, b.asADDND))
     static member Min(a : DNDArray, b : DNDArray) = DNDArray(ADDND.Min(a.asADDND, b.asADDND))

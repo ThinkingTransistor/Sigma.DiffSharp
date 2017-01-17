@@ -164,13 +164,16 @@ type NativeDataBuffer<'T>(data : 'T [], offset : int32, length : int32) =
 
 type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
     let _buffer = buffer
-    let _shape = shape
+    let mutable _shape = shape
     member d.DataBuffer = _buffer
-    member d.Shape = _shape
     member d.Rows = int32 _shape.[0]
     member d.Cols = int32 _shape.[1]
     member d.Length = _buffer.Length
-    
+        
+    member d.Shape
+        with get() = _shape
+        and set (v) = _shape <- v
+
     member d.Item 
         with get (i : int32, j : int32) = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)]
         and set (i : int32, j : int32) value = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)] <- value
