@@ -1792,7 +1792,7 @@ and DNDArray =
             if i < d.Rows - 1 then sb.AppendLine() |> ignore
         sb.ToString()
     
-    static member Zero = DM(ShapedDataBufferView(NativeDataBuffer<number>(Array.empty), int64 0))
+    static member Zero = DM(ShapedDataBufferView(NativeDataBuffer<number>(Array.empty), int64 0, int64 0))
     static member ZeroMN m n (b : Backend<number>) = 
         DM(ShapedDataBufferView(b.CreateDataBuffer(Array.create (m * n) number0), int64 m, int64 n))
     

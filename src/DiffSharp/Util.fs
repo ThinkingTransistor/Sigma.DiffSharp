@@ -163,8 +163,12 @@ type NativeDataBuffer<'T>(data : 'T [], offset : int32, length : int32) =
      override d.ToString() = sprintf "DataBuffer-%i %A" _length (d :> ISigmaDiffDataBuffer<'T>).SubData
 
 type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] shape : int64 []) = 
+    let checkshape (s : int64[]) = 
+        if (s.Length <= 1) then
+            failwithf "Internal error: Cannot create shaped data buffer view without columns dimension (rank <= 1, _shape: %A)" s
+        s
     let _buffer = buffer
-    let mutable _shape = shape
+    let mutable _shape = (checkshape(shape))
     member d.DataBuffer = _buffer
     member d.Rows = int32 _shape.[0]
     member d.Cols = 
@@ -175,7 +179,10 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
         
     member d.Shape
         with get() = _shape
-        and set (v) = _shape <- v
+        and set (v : int64[]) = 
+            if (v.Length <= 1) then
+                failwithf "Internal error: Cannot set shaped data buffer view shape without columns dimension (rank <= 1, _shape: %A)" v
+            _shape <- v
 
     member d.Item 
         with get (i : int32, j : int32) = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)]
