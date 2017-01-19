@@ -4088,7 +4088,7 @@ module DOps =
                             | Sub_D_DM(a, b) -> pushRec ((bx (DNDArray.Sum(d.A)) a) :: (bx -d.A b) :: t)
                             | Sub_D_DMCons(a) -> pushRec ((bx (DNDArray.Sum(d.A)) a) :: t)
                             | Sub_DCons_DM(b) -> pushRec ((bx -d.A b) :: t)
-                            | Div_DM_D(a, b) -> pushRec ((bx (d.A / b.P) a) :: (bx (d.A * (-a.P / (b.P * b.P))) b) :: t)
+                            | Div_DM_D(a, b) -> pushRec ((bx (d.A / b.P) a) :: (bx (DNDArray.Sum(d.A * (-a.P / (b.P * b.P)))) b) :: t)
                             | Div_DM_DCons(a, cons) -> pushRec ((bx (d.A / cons) a) :: t)
                             | Div_DMCons_D(cons, b) -> pushRec ((bx (d.A * (-cons / (b.P * b.P))) b) :: t)
                             | Div_D_DM(a, b) -> 

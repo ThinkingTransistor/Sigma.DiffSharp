@@ -169,6 +169,7 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
         s
     let _buffer = buffer
     let mutable _shape = (checkshape(shape))
+//    do printfn "construct with shape %A\n from %A" shape System.Environment.StackTrace
     member d.DataBuffer = _buffer
     member d.Rows = int32 _shape.[0]
     member d.Cols = 
@@ -182,6 +183,7 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
         and set (v : int64[]) = 
             if (v.Length <= 1) then
                 failwithf "Internal error: Cannot set shaped data buffer view shape without columns dimension (rank <= 1, _shape: %A)" v
+//            do printfn "set with shape %A" v
             _shape <- v
 
     member d.Item 
@@ -189,11 +191,11 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
         and set (i : int32, j : int32) value = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)] <- value
     
     member d.FlatItem 
-        with get (i : int32) = _buffer.SubData.[i]
-    member d.ShallowCopy() = ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy shape))
-    member d.DeepCopy() = ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy shape))
+        with get (i : int32) = _buffer.Data.[_buffer.Offset + i]
+    member d.ShallowCopy() = ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy _shape))
+    member d.DeepCopy() = ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy _shape))
 
-    override d.ToString() = sprintf "ShapedDataBuffer view %O as %A" buffer shape 
+    override d.ToString() = sprintf "ShapedDataBuffer view %O as %A" buffer _shape 
 
 /// Tagger for generating incremental integers
 type Tagger = 
