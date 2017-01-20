@@ -4050,7 +4050,16 @@ module DOps =
                                     ((bx (d.A * DNDArray.Transpose(b.P)) a) 
                                      :: (bx (DNDArray.Transpose(a.P) * d.A) b) :: t)
                             | Mul_DM_DMCons(a, cons) -> pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
-                            | Mul_DMCons_DM(cons, b) -> pushRec ((bx (DNDArray.Transpose(cons) * d.A) b) :: t)
+                            | Mul_DMCons_DM(cons, b) -> 
+                                printfn "pushing with cons %A\n and b %A" cons.Buffer b.Buffer
+                                printfn "from v %A" (v :?> DNDArray).Buffer
+                                let transcons = DNDArray.Transpose(cons);
+                                let result = transcons * d.A
+                                printfn "multiply transcons %A" transcons.Buffer
+                                printfn " with d.A %A" d.A.Buffer
+                                printfn "resulting %A" result.Buffer
+                                printfn "shapes transcons %A dot d.A %A = result %A" transcons.Buffer.Shape d.A.Buffer.Shape result.Buffer.Shape
+                                pushRec ((bx (result) b) :: t)
                             | Mul_Had_DM_DM(a, b) -> pushRec ((bx (d.A .* b.P) a) :: (bx (d.A .* a.P) b) :: t)
                             | Mul_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons) a) :: t)
                             | Mul_DM_D(a, b) -> pushRec ((bx (d.A * b.P) a) :: (bx (DNDArray.Sum(d.A .* a.P)) b) :: t)
