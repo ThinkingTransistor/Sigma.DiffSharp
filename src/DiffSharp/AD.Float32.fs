@@ -3786,6 +3786,7 @@ module DOps =
                 | :? DNumber as d -> 
                     match d with
                     | DR(_, _, o, _, _) -> 
+//                        printfn "traceop dnumber %A" (o.GetType())
                         d.A <- d.A + (v :?> DNumber)
                         d.F <- d.F - 1u
                         if d.F = 0u then 
@@ -4036,6 +4037,7 @@ module DOps =
                 | :? DNDArray as d -> 
                     match d with
                     | DMR(_, _, o, _, _) -> 
+//                        printfn "traceop dndarray %A" (o.GetType())
                         d.A <- d.A + (v :?> DNDArray)
                         d.F <- d.F - 1u
                         if d.F = 0u then 
@@ -4051,14 +4053,8 @@ module DOps =
                                      :: (bx (DNDArray.Transpose(a.P) * d.A) b) :: t)
                             | Mul_DM_DMCons(a, cons) -> pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
                             | Mul_DMCons_DM(cons, b) -> 
-                                printfn "pushing with cons %A\n and b %A" cons.Buffer b.Buffer
-                                printfn "from v %A" (v :?> DNDArray).Buffer
                                 let transcons = DNDArray.Transpose(cons);
                                 let result = transcons * d.A
-                                printfn "multiply transcons %A" transcons.Buffer
-                                printfn " with d.A %A" d.A.Buffer
-                                printfn "resulting %A" result.Buffer
-                                printfn "shapes transcons %A dot d.A %A = result %A" transcons.Buffer.Shape d.A.Buffer.Shape result.Buffer.Shape
                                 pushRec ((bx (result) b) :: t)
                             | Mul_Had_DM_DM(a, b) -> pushRec ((bx (d.A .* b.P) a) :: (bx (d.A .* a.P) b) :: t)
                             | Mul_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons) a) :: t)
@@ -4098,9 +4094,12 @@ module DOps =
                             | Sub_D_DM(a, b) -> pushRec ((bx (DNDArray.Sum(d.A)) a) :: (bx -d.A b) :: t)
                             | Sub_D_DMCons(a) -> pushRec ((bx (DNDArray.Sum(d.A)) a) :: t)
                             | Sub_DCons_DM(b) -> pushRec ((bx -d.A b) :: t)
-                            | Div_DM_D(a, b) -> pushRec ((bx (d.A / b.P) a) :: (bx (DNDArray.Sum(d.A * (-a.P / (b.P * b.P)))) b) :: t)
+                            | Div_DM_D(a, b) -> 
+                                let pusha = (bx (d.A / b.P) a)
+                                let pushb = (bx (DNDArray.Sum(d.A .* (-a.P / (b.P * b.P)))) b)
+                                pushRec ((pusha) :: (pushb) :: t)
                             | Div_DM_DCons(a, cons) -> pushRec ((bx (d.A / cons) a) :: t)
-                            | Div_DMCons_D(cons, b) -> pushRec ((bx (d.A * (-cons / (b.P * b.P))) b) :: t)
+                            | Div_DMCons_D(cons, b) -> pushRec ((bx (d.A .* (-cons / (b.P * b.P))) b) :: t)
                             | Div_D_DM(a, b) -> 
                                 pushRec 
                                     ((bx (DNDArray.Sum(d.A ./ b.P)) a) :: (bx (d.A .* (-a.P / (b.P .* b.P))) b) :: t)
