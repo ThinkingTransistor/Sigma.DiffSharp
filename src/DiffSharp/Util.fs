@@ -136,6 +136,7 @@ type ISigmaDiffDataBuffer<'T> =
     abstract Data : 'T[]
     abstract SubData : 'T[]
     abstract GetValues : int32 -> int32 -> ISigmaDiffDataBuffer<'T>
+    abstract GetStackedValues : int32 -> int32 -> int32 -> int32 -> int32 -> int32 -> ISigmaDiffDataBuffer<'T> 
     abstract DeepCopy : unit -> ISigmaDiffDataBuffer<'T>
     abstract ShallowCopy : unit -> ISigmaDiffDataBuffer<'T>
 
@@ -155,7 +156,8 @@ type NativeDataBuffer<'T>(data : 'T [], offset : int32, length : int32) =
         override d.Offset = _offset
         override d.Data = _data
         override d.SubData =  _data.[_offset..(_offset + _length - 1)]
-        override d.GetValues startIndex length = NativeDataBuffer<'T>(data, _offset + offset, length) :> ISigmaDiffDataBuffer<'T>
+        override d.GetValues startIndex length = NativeDataBuffer<'T>(_data, _offset + offset, length) :> ISigmaDiffDataBuffer<'T>
+        override d.GetStackedValues rows cols rowStart rowFinish colStart colFinish = failwithf "Call to not implemented GetStackedValues function in NativeDataBuffer."
         override d.ShallowCopy() = NativeDataBuffer<'T>(data, offset, length) :> ISigmaDiffDataBuffer<'T>
         override d.DeepCopy() = NativeDataBuffer<'T>((Array.copy data), offset, length) :> ISigmaDiffDataBuffer<'T>
         end
@@ -192,6 +194,21 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
     
     member d.FlatItem 
         with get (i : int32) = _buffer.Data.[_buffer.Offset + i]
+
+    member d.GetSlice(row, colStart, colFinish) =
+        let colStart = defaultArg colStart 0
+        let colFinish = defaultArg colFinish (d.Cols - 1)
+
+        ShapedDataBufferView((_buffer.GetValues (row * d.Cols) (colFinish - colStart)), int64 1, int64 (colFinish - colStart + 1))
+
+    member d.GetSlice(rowStart, rowFinish, colStart, colFinish) =
+        let rowStart = defaultArg rowStart 0
+        let rowFinish = defaultArg rowFinish (d.Rows - 1)
+        let colStart = defaultArg colStart 0
+        let colFinish = defaultArg colFinish (d.Cols - 1)
+
+        ShapedDataBufferView((_buffer.GetStackedValues d.Rows d.Cols rowStart rowFinish colStart colFinish), int64 (rowFinish - rowStart + 1), int64 (colFinish - colStart + 1))
+
     member d.ShallowCopy() = ShapedDataBufferView(_buffer.ShallowCopy(), (Array.copy _shape))
     member d.DeepCopy() = ShapedDataBufferView(_buffer.DeepCopy(), (Array.copy _shape))
 

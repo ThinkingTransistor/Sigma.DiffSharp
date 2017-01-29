@@ -1792,11 +1792,32 @@ and DNDArray =
             if i < d.Rows - 1 then sb.AppendLine() |> ignore
         sb.ToString()
     
+    member d.GetSlice(rowStart, rowFinish, colStart, colFinish) =
+        let rowStart = defaultArg rowStart 0
+        let rowFinish = defaultArg rowFinish (d.Rows - 1)
+        let colStart = defaultArg colStart 0
+        let colFinish = defaultArg colFinish (d.Cols - 1)
+        match d with
+        | DM(ap) -> DM(ap.[rowStart..rowFinish, colStart..colFinish])
+        | DMF(ap,at,ai) -> DMF(ap.[rowStart..rowFinish, colStart..colFinish], at.[rowStart..rowFinish, colStart..colFinish], ai)
+        | DMR(ap,_,_,_,ai) -> let cp = ap.[rowStart..rowFinish, colStart..colFinish] in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(d))), Slice_DM(d, rowStart, rowFinish), ref 0u, ai)
+
+    member d.GetSlice(row, colStart, colFinish) =
+        let colStart = defaultArg colStart 0
+        let colFinish = defaultArg colFinish (d.Cols - 1)
+        match d with
+        | DM(ap) -> DV(ap.[row, colStart..colFinish].DataBuffer)
+        | DMF(ap,at,ai) -> DVF(ap.[row, colStart..colFinish], at.[row, colStart..colFinish], ai)
+        | DMR(ap,_,_,_,ai) -> let cp = ap.[row, colStart..colFinish] in DVR(cp, ref (DV((Backend(d)).CreateDataBuffer(Array.zeroCreate cp.Length))), SliceRow_DM(d, row, colStart), ref 0u, ai)
+
+    member d.GetRows() =
+        seq {for i = 0 to d.Rows - 1 do yield d.[i,*]}
+
     static member Zero = DM(ShapedDataBufferView(NativeDataBuffer<number>(Array.empty), int64 0, int64 0))
     static member ZeroMN m n (b : Backend<number>) = 
         DM(ShapedDataBufferView(b.CreateDataBuffer(Array.create (m * n) number0), int64 m, int64 n))
     
-    static member OfRows(s : seq<DVector>) = 
+    static member OfRows(s : seq<DVector>, b : Backend<number>) = 
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
         match Seq.head s with
         | DV(_) -> 
@@ -1805,16 +1826,16 @@ and DNDArray =
                                    |> Seq.map DVector.op_Explicit
                                    |> Seq.concat
                                    |> Seq.toArray, 
-                                   Backend(s))
+                                   b)
         | DVF(_, _, ai) -> 
             let ap = s |> Seq.map (fun x -> x.P)
             let at = s |> Seq.map (fun x -> x.T)
-            DMF(DNDArray.OfRows(ap), DNDArray.OfRows(at), ai)
+            DMF(DNDArray.OfRows(ap, b), DNDArray.OfRows(at, b), ai)
         | DVR(_, _, _, _, ai) -> 
             let ap = s |> Seq.map (fun x -> x.P)
-            let cp = DNDArray.OfRows(ap)
+            let cp = DNDArray.OfRows(ap, b)
             DMR
-                (cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(ap))), Make_DMRows_ofDVs(s |> Seq.toArray), ref 0u, 
+                (cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols b), Make_DMRows_ofDVs(s |> Seq.toArray), ref 0u, 
                  ai)
     
     // Creates a matrix with `m` rows from array `a`, filling columns from left to right and rows from top to bottom. The number of columns will be deduced from `m` and the length of `a`. The length of `a` must be an integer multiple of `m`.
@@ -2798,6 +2819,23 @@ and DNDArray =
         let inline r_c_d (a, b) = AddItem_DMCons_D(i, j, b)
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
+        /// Add submatrix `b` to matrix `a`, where the upper left corner of `b` is positioned at row `i` and column `j`
+    static member AddSubMatrix (a:DNDArray, i:int, j:int, b:DNDArray) =
+        let inline ff(a:ShapedDataBufferView<number>, bb:ShapedDataBufferView<number>) = 
+            let aa = a.DeepCopy()
+            for ii = 0 to b.Rows - 1 do
+                for jj = 0 to b.Cols - 1 do
+                    aa.[i + ii, j + jj] <- aa.[i + ii, j + jj] + bb.[ii, jj]
+            aa
+        let inline fd(a, b) = DNDArray.AddSubMatrix(a, i, j, b)
+        let inline df_da(cp, ap, at) = at
+        let inline df_db(cp, bp, bt) = DNDArray.AddSubMatrix(DNDArray.ZeroMN a.Rows a.Cols (Backend(a)), i, j, bt)
+        let inline df_dab(cp, ap, at, bp, bt) = DNDArray.AddSubMatrix(at, i, j, bt)
+        let inline r_d_d(a, b) = AddSubMatrix_DM_DM(a, i, j, b)
+        let inline r_d_c(a, b) = AddSubMatrix_DM_DMCons(a)
+        let inline r_c_d(a, b) = AddSubMatrix_DMCons_DM(i, j, b)
+        DNDArray.Op_DM_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
+
     /// Add the elements of vector `b` to the diagonal elements of matrix `a`
     static member AddDiagonal(a : DNDArray, b : DVector) = 
         let inline ff (a : ShapedDataBufferView<number>, b : IDataBuffer) = 
@@ -3163,6 +3201,9 @@ and TraceOp =
     | AddItem_DM_D of DNDArray * int * int * DNumber
     | AddItem_DM_DCons of DNDArray
     | AddItem_DMCons_D of int * int * DNumber
+    | AddSubMatrix_DM_DM     of DNDArray * int * int * DNDArray
+    | AddSubMatrix_DM_DMCons of DNDArray
+    | AddSubMatrix_DMCons_DM of int * int * DNDArray
     | Slice_DM of DNDArray * int * int
     | RowMatrix_DV of DVector
     | AddDiagonal_DM_DV of DNDArray * DVector
@@ -3341,10 +3382,11 @@ module DM =
     let inline ofRows s = DNDArray.OfRows(s)
     
     /// Creates a matrix from a sequence of column vectors `s`
-    let inline ofCols (s : seq<DVector>) = 
-        s
-        |> ofRows
-        |> transpose
+    let inline ofCols (s : seq<DVector>, b : Backend<number>) = 
+        ofRows(s, b) |> transpose
+
+    /// Gets the sequence of row vectors in matrix `m`
+    let inline toRows (m : DNDArray) = m.GetRows()
     
     /// Converts matrix `m` into a vector by stacking its rows
     let inline toDV (m : DNDArray) = DNDArray.ReshapeToDV(m)
@@ -3572,7 +3614,7 @@ module DOps =
                 | :? DVector as d -> 
                     match d with
                     | DVR(_, _, o, _, _) -> 
-                        d.A <- DVector.ZeroN d.Length
+                        d.A <- DV((Backend(d.Buffer)).CreateDataBuffer(Array.zeroCreate d.Length))
                         d.F <- d.F + 1u
                         if d.F = 1u then 
                             match o with
@@ -3756,9 +3798,13 @@ module DOps =
                                 resetRec (List.append (a
                                                        |> Array.map box
                                                        |> List.ofArray) t)
+                            | Make_DMRows_ofDVs(a) -> resetRec (List.append (a |> Array.map box |> List.ofArray) t)
                             | AddItem_DM_D(a, _, _, b) -> resetRec (box a :: box b :: t)
                             | AddItem_DM_DCons(a) -> resetRec (box a :: t)
                             | AddItem_DMCons_D(_, _, b) -> resetRec (box b :: t)
+                            | AddSubMatrix_DM_DM(a,_,_,b) -> resetRec (box a :: box b :: t)
+                            | AddSubMatrix_DM_DMCons(a) -> resetRec (box a :: t)
+                            | AddSubMatrix_DMCons_DM(_,_,b) -> resetRec (box b :: t)
                             | Slice_DM(a, _, _) -> resetRec (box a :: t)
                             | AddDiagonal_DM_DV(a, b) -> resetRec (box a :: box b :: t)
                             | AddDiagonal_DM_DVCons(a) -> resetRec (box a :: t)
@@ -3879,6 +3925,7 @@ module DOps =
                 | :? DVector as d -> 
                     match d with
                     | DVR(_, _, o, _, _) -> 
+//                        printfn "traceop dvector %A" (o.GetType())
                         d.A <- d.A + (v :?> DVector)
                         d.F <- d.F - 1u
                         if d.F = 0u then 
@@ -3993,6 +4040,9 @@ module DOps =
                                 pushRec (t |> List.append (a
                                                            |> Array.mapi (fun i v -> (bx d.A.[i] v))
                                                            |> List.ofArray))
+                            | SliceRow_DM(a, i, j) ->
+                                a.A <- DNDArray.AddSubMatrix(a.A, i, j, d.A.ToRowDM((Backend(a))))
+                                pushRec ((bx DNDArray.Zero a) :: t)
                             | Solve_DM_DV(a, b) -> 
                                 let ba = DNDArray.Solve(DNDArray.Transpose(a), d.A)
                                 pushRec ((bx (-ba &* d.A) a) :: (bx (ba) b) :: t)
@@ -4022,7 +4072,8 @@ module DOps =
                                 pushRec ((bx d.A a) :: (bx (d.A.[i..(i + b.Length - 1)]) b) :: t)
                             | AddSubVector_DV_DVCons(a) -> pushRec ((bx d.A a) :: t)
                             | AddSubVector_DVCons_DV(i, b) -> pushRec ((bx (d.A.[i..(i + b.Length - 1)]) b) :: t)
-                            | ReshapeCopy_DM_DV(a) -> pushRec ((bx (DVector.ReshapeToDM(a.Rows, d.A)) a) :: t)
+                            | ReshapeCopy_DM_DV(a) -> 
+                                pushRec ((bx (DVector.ReshapeToDM(a.Rows, d.A)) a) :: t)
                             | Slice_DV(a, i) -> 
                                 a.A <- DVector.AddSubVector(a.A, i, d.A)
                                 pushRec ((bx DVector.Zero a) :: t)
@@ -4169,9 +4220,16 @@ module DOps =
                                                                                 |> DM.toDV
                                                                                 |> DV.toArray
                                                                                 |> Array.toList) (a |> List.ofArray)))
+                            | Make_DMRows_ofDVs(a) -> pushRec (t |> List.append (a |> List.ofArray |> List.mapi (fun i v -> (bx d.A.[i, *] v))))
                             | AddItem_DM_D(a, i, j, b) -> pushRec ((bx d.A a) :: (bx (d.A.[i, j]) b) :: t)
                             | AddItem_DM_DCons(a) -> pushRec ((bx d.A a) :: t)
                             | AddItem_DMCons_D(i, j, b) -> pushRec ((bx d.A.[i, j] b) :: t)
+                            | AddSubMatrix_DM_DM(a, i, j, b) -> pushRec ((bx d.A a) :: (bx (d.A.[i..(i + b.Rows - 1), j..(j + b.Cols - 1)]) b) :: t)
+                            | AddSubMatrix_DM_DMCons(a) -> pushRec ((bx d.A a) :: t)
+                            | AddSubMatrix_DMCons_DM(i, j, b) -> pushRec ((bx (d.A.[i..(i + b.Rows - 1), j..(j + b.Cols - 1)]) b) :: t)
+                            | Slice_DM(a, i, j) ->
+                                a.A <- DNDArray.AddSubMatrix(a.A, i, j, d.A)
+                                pushRec ((bx DNDArray.Zero a) :: t)
                             | AddDiagonal_DM_DV(a, b) -> pushRec ((bx d.A a) :: (bx (DNDArray.Diagonal(d.A)) b) :: t)
                             | AddDiagonal_DM_DVCons(a) -> pushRec ((bx d.A a) :: t)
                             | AddDiagonal_DMCons_DV(b) -> pushRec ((bx (DNDArray.Diagonal(d.A)) b) :: t)
@@ -4280,90 +4338,90 @@ module DiffOps =
     let inline jacobianTv f x v = jacobianTv' f x v |> snd
     
     /// Original value and Jacobian of a vector-to-vector function `f`, at point `x`. Forward or reverse AD, depending on input and output dimensions.
-    let inline jacobian' f (x : DVector) = 
-        let o : DVector = 
-            x
-            |> f
-            |> primal
-        if x.Length > o.Length then 
-            let r = jacobianTv f x
-            (o, Array.init o.Length (fun j -> r (DV.standardBasis o.Length j)) |> DM.ofRows)
-        else (o, Array.init x.Length (fun i -> jacobianv f x (DV.standardBasis x.Length i)) |> DM.ofCols)
-    
+//    let inline jacobian' f (x : DVector, b : Backend<number>) = 
+//        let o : DVector = 
+//            x
+//            |> f
+//            |> primal
+//        if x.Length > o.Length then 
+//            let r = jacobianTv f x
+//            (o, Array.init o.Length (fun j -> r (DV.standardBasis o.Length j)) |> DM.ofRows b)
+//        else (o, Array.init x.Length (fun i -> jacobianv f x (DV.standardBasis x.Length i)) |> DM.ofCols b)
+//    
     /// Jacobian of a vector-to-vector function `f`, at point `x`. Forward or reverse AD, depending on input and output dimensions.
-    let inline jacobian f x = jacobian' f x |> snd
-    
-    /// Original value and transposed Jacobian of a vector-to-vector function `f`, at point `x`. Forward or reverse AD, depending on input and output dimensions.
-    let inline jacobianT' f x = jacobian' f x |> fun (r, j) -> (r, DM.transpose j)
-    
-    /// Transposed Jacobian of a vector-to-vector function `f`, at point `x`. Forward or reverse AD, depending on input and output dimensions.
-    let inline jacobianT f x = jacobianT' f x |> snd
-    
-    /// Gradient and Hessian of a vector-to-scalar function `f`, at point `x`. Forward-on-reverse AD.
-    let inline gradhessian f x = jacobian' (grad f) x
+//    let inline jacobian f x = jacobian' f x |> snd
+//    
+//    /// Original value and transposed Jacobian of a vector-to-vector function `f`, at point `x`. Forward or reverse AD, depending on input and output dimensions.
+//    let inline jacobianT' f x = jacobian' f x |> fun (r, j) -> (r, DM.transpose j)
+//    
+//    /// Transposed Jacobian of a vector-to-vector function `f`, at point `x`. Forward or reverse AD, depending on input and output dimensions.
+//    let inline jacobianT f x = jacobianT' f x |> snd
+//    
+//    /// Gradient and Hessian of a vector-to-scalar function `f`, at point `x`. Forward-on-reverse AD.
+//    let inline gradhessian f x = jacobian' (grad f) x
     
     /// Original value, gradient, and Hessian of a vector-to-scalar function `f`, at point `x`. Forward-on-reverse AD.
-    let inline gradhessian' f x = 
-        let g, h = gradhessian f x
-        (x |> f, g, h)
-    
-    /// Hessian of a vector-to-scalar function `f`, at point `x`. Forward-on-reverse AD.
-    let inline hessian f x = jacobian (grad f) x
-    
-    /// Original value and Hessian of a vector-to-scalar function `f`, at point `x`. Forward-on-reverse AD.
-    let inline hessian' f x = (x |> f, hessian f x)
-    
-    /// Original value, gradient-vector product (directional derivative), and Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
-    let inline gradhessianv' f x v = 
-        let gv, hv = grad' (fun xx -> jacobianv f xx v) x
-        (x |> f, gv, hv)
-    
-    /// Gradient-vector product (directional derivative) and Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
-    let inline gradhessianv f x v = gradhessianv' f x v |> sndtrd
-    
-    /// Original value and Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
-    let inline hessianv' f x v = gradhessianv' f x v |> fsttrd
-    
-    /// Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
-    let inline hessianv f x v = hessianv' f x v |> snd
-    
-    /// Original value and Laplacian of a vector-to-scalar function `f`, at point `x`. Reverse-on-forward AD.
-    let inline laplacian' f x = // TODO: reimplement faster
-        let v, h = hessian' f x
-        (v, DM.trace h)
-    
-    /// Laplacian of a vector-to-scalar function `f`, at point `x`. Reverse-on-forward AD.
-    let inline laplacian f x = laplacian' f x |> snd
-    
-    /// Original value and curl of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
-    let inline curl' f x = 
-        let v, j = jacobianT' f x
-        if (j.Rows, j.Cols) <> (3, 3) then ErrorMessages.InvalidArgCurl()
-        v, 
-        toDV [| j.[1, 2] - j.[2, 1]
-                j.[2, 0] - j.[0, 2]
-                j.[0, 1] - j.[1, 0] |]
-    
-    /// Curl of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
-    let inline curl f x = curl' f x |> snd
-    
-    /// Original value and divergence of a vector-to-vector function `f`, at point `x`. Defined only for functions with a square Jacobian matrix. Forward AD.
-    let inline div' f x = 
-        let v, j = jacobianT' f x
-        if j.Rows <> j.Cols then ErrorMessages.InvalidArgDiv()
-        v, DM.trace j
-    
-    /// Divergence of a vector-to-vector function `f`, at point `x`. Defined only for functions with a square Jacobian matrix. Forward AD.
-    let inline div f x = div' f x |> snd
-    
-    /// Original value, curl, and divergence of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
-    let inline curldiv' f x = 
-        let v, j = jacobianT' f x
-        if (j.Rows, j.Cols) <> (3, 3) then ErrorMessages.InvalidArgCurlDiv()
-        v, 
-        toDV [| j.[1, 2] - j.[2, 1]
-                j.[2, 0] - j.[0, 2]
-                j.[0, 1] - j.[1, 0] |], DM.trace j
-    
-    /// Curl and divergence of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
-    let inline curldiv f x = curldiv' f x |> sndtrd
+//    let inline gradhessian' f x = 
+//        let g, h = gradhessian f x
+//        (x |> f, g, h)
+//    
+//    /// Hessian of a vector-to-scalar function `f`, at point `x`. Forward-on-reverse AD.
+//    let inline hessian f x = jacobian (grad f) x
+//    
+//    /// Original value and Hessian of a vector-to-scalar function `f`, at point `x`. Forward-on-reverse AD.
+//    let inline hessian' f x = (x |> f, hessian f x)
+//    
+//    /// Original value, gradient-vector product (directional derivative), and Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
+//    let inline gradhessianv' f x v = 
+//        let gv, hv = grad' (fun xx -> jacobianv f xx v) x
+//        (x |> f, gv, hv)
+//    
+//    /// Gradient-vector product (directional derivative) and Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
+//    let inline gradhessianv f x v = gradhessianv' f x v |> sndtrd
+//    
+//    /// Original value and Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
+//    let inline hessianv' f x v = gradhessianv' f x v |> fsttrd
+//    
+//    /// Hessian-vector product of a vector-to-scalar function `f`, at point `x`, along vector `v`. Reverse-on-forward AD.
+//    let inline hessianv f x v = hessianv' f x v |> snd
+//    
+//    /// Original value and Laplacian of a vector-to-scalar function `f`, at point `x`. Reverse-on-forward AD.
+//    let inline laplacian' f x = // TODO: reimplement faster
+//        let v, h = hessian' f x
+//        (v, DM.trace h)
+//    
+//    /// Laplacian of a vector-to-scalar function `f`, at point `x`. Reverse-on-forward AD.
+//    let inline laplacian f x = laplacian' f x |> snd
+//    
+//    /// Original value and curl of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
+//    let inline curl' f x = 
+//        let v, j = jacobianT' f x
+//        if (j.Rows, j.Cols) <> (3, 3) then ErrorMessages.InvalidArgCurl()
+//        v, 
+//        toDV [| j.[1, 2] - j.[2, 1]
+//                j.[2, 0] - j.[0, 2]
+//                j.[0, 1] - j.[1, 0] |]
+//    
+//    /// Curl of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
+//    let inline curl f x = curl' f x |> snd
+//    
+//    /// Original value and divergence of a vector-to-vector function `f`, at point `x`. Defined only for functions with a square Jacobian matrix. Forward AD.
+//    let inline div' f x = 
+//        let v, j = jacobianT' f x
+//        if j.Rows <> j.Cols then ErrorMessages.InvalidArgDiv()
+//        v, DM.trace j
+//    
+//    /// Divergence of a vector-to-vector function `f`, at point `x`. Defined only for functions with a square Jacobian matrix. Forward AD.
+//    let inline div f x = div' f x |> snd
+//    
+//    /// Original value, curl, and divergence of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
+//    let inline curldiv' f x = 
+//        let v, j = jacobianT' f x
+//        if (j.Rows, j.Cols) <> (3, 3) then ErrorMessages.InvalidArgCurlDiv()
+//        v, 
+//        toDV [| j.[1, 2] - j.[2, 1]
+//                j.[2, 0] - j.[0, 2]
+//                j.[0, 1] - j.[1, 0] |], DM.trace j
+//    
+//    /// Curl and divergence of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix. Forward AD.
+//    let inline curldiv f x = curldiv' f x |> sndtrd
