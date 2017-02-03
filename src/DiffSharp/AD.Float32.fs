@@ -1793,6 +1793,7 @@ and DNDArray =
         sb.ToString()
     
     member d.GetSlice(rowStart, rowFinish, colStart, colFinish) =
+//        printfn "get slice4 %A %A %A %A" rowStart rowFinish colStart colFinish
         let rowStart = defaultArg rowStart 0
         let rowFinish = defaultArg rowFinish (d.Rows - 1)
         let colStart = defaultArg colStart 0
@@ -1800,9 +1801,10 @@ and DNDArray =
         match d with
         | DM(ap) -> DM(ap.[rowStart..rowFinish, colStart..colFinish])
         | DMF(ap,at,ai) -> DMF(ap.[rowStart..rowFinish, colStart..colFinish], at.[rowStart..rowFinish, colStart..colFinish], ai)
-        | DMR(ap,_,_,_,ai) -> let cp = ap.[rowStart..rowFinish, colStart..colFinish] in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(d))), Slice_DM(d, rowStart, rowFinish), ref 0u, ai)
+        | DMR(ap,_,_,_,ai) -> let cp = ap.[rowStart..rowFinish, colStart..colFinish] in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols (Backend(d))), Slice_DM(d, rowStart, colStart), ref 0u, ai)
 
     member d.GetSlice(row, colStart, colFinish) =
+//        printfn "get slice3 %A %A %A from %A %A" row colStart colFinish (d.GetType()) d.Buffer
         let colStart = defaultArg colStart 0
         let colFinish = defaultArg colFinish (d.Cols - 1)
         match d with
@@ -2825,7 +2827,9 @@ and DNDArray =
             let aa = a.DeepCopy()
             for ii = 0 to b.Rows - 1 do
                 for jj = 0 to b.Cols - 1 do
-                    aa.[i + ii, j + jj] <- aa.[i + ii, j + jj] + bb.[ii, jj]
+                    let dest = aa.[i + ii, j + jj]
+                    let src = bb.[ii, jj]
+                    aa.[i + ii, j + jj] <- dest + src
             aa
         let inline fd(a, b) = DNDArray.AddSubMatrix(a, i, j, b)
         let inline df_da(cp, ap, at) = at
@@ -3832,6 +3836,7 @@ module DOps =
                 | :? DNumber as d -> 
                     match d with
                     | DR(_, _, o, _, _) -> 
+//                        printfn "pushrec %A" (v :?> DNumber).Value
 //                        printfn "traceop dnumber %A" (o.GetType())
                         d.A <- d.A + (v :?> DNumber)
                         d.F <- d.F - 1u
@@ -3925,6 +3930,7 @@ module DOps =
                 | :? DVector as d -> 
                     match d with
                     | DVR(_, _, o, _, _) -> 
+//                        printfn "pushrec %A" (v :?> DVector).Buffer
 //                        printfn "traceop dvector %A" (o.GetType())
                         d.A <- d.A + (v :?> DVector)
                         d.F <- d.F - 1u
@@ -4088,8 +4094,11 @@ module DOps =
                 | :? DNDArray as d -> 
                     match d with
                     | DMR(_, _, o, _, _) -> 
+//                        printfn "pushrec %A" (v :?> DNDArray).Buffer
 //                        printfn "traceop dndarray %A" (o.GetType())
+//                        printfn "before update d.A %A" d.A.Buffer
                         d.A <- d.A + (v :?> DNDArray)
+//                        printfn "after  update d.A %A" d.A.Buffer
                         d.F <- d.F - 1u
                         if d.F = 0u then 
                             match o with
@@ -4190,7 +4199,8 @@ module DOps =
                                 pushRec ((bx (d.A * (-cons) ./ ((cons * cons) + (b.P .* b.P))) b) :: t)
                             | Log_DM(a) -> pushRec ((bx (d.A ./ a.P) a) :: t)
                             | Log10_DM(a) -> pushRec ((bx (d.A ./ (a.P * log10Val())) a) :: t)
-                            | Exp_DM(a) -> pushRec ((bx (d.A .* d.P) a) :: t) // d.P = exp a.P
+                            | Exp_DM(a) -> 
+                                pushRec ((bx (d.A .* d.P) a) :: t) // d.P = exp a.P
                             | Sin_DM(a) -> pushRec ((bx (d.A .* cos a.P) a) :: t)
                             | Cos_DM(a) -> pushRec ((bx (-d.A .* sin a.P) a) :: t)
                             | Tan_DM(a) -> 
@@ -4220,7 +4230,12 @@ module DOps =
                                                                                 |> DM.toDV
                                                                                 |> DV.toArray
                                                                                 |> Array.toList) (a |> List.ofArray)))
-                            | Make_DMRows_ofDVs(a) -> pushRec (t |> List.append (a |> List.ofArray |> List.mapi (fun i v -> (bx d.A.[i, *] v))))
+                            | Make_DMRows_ofDVs(a) -> 
+//                                printfn "Make_DMRows_ofDVs d.A %A" d.A.Buffer
+                                let result = a |> List.ofArray |> List.mapi (fun i v -> 
+//                                                                                           printfn "mapi %A result %A" i d.A.[i, *].Buffer
+                                                                                           (bx d.A.[i, *] v))
+                                pushRec (t |> List.append (result))
                             | AddItem_DM_D(a, i, j, b) -> pushRec ((bx d.A a) :: (bx (d.A.[i, j]) b) :: t)
                             | AddItem_DM_DCons(a) -> pushRec ((bx d.A a) :: t)
                             | AddItem_DMCons_D(i, j, b) -> pushRec ((bx d.A.[i, j] b) :: t)

@@ -199,7 +199,7 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
         let colStart = defaultArg colStart 0
         let colFinish = defaultArg colFinish (d.Cols - 1)
 
-        ShapedDataBufferView((_buffer.GetValues (row * d.Cols) (colFinish - colStart)), int64 1, int64 (colFinish - colStart + 1))
+        ShapedDataBufferView((_buffer.GetValues (row * d.Cols) (colFinish - colStart + 1)), int64 1, int64 (colFinish - colStart + 1))
 
     member d.GetSlice(rowStart, rowFinish, colStart, colFinish) =
         let rowStart = defaultArg rowStart 0
