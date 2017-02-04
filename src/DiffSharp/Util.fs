@@ -189,7 +189,6 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
 
     member d.Item 
         with get (i : int32, j : int32) = 
-            printfn "get item %A %A (%A, num rows %A, buffer len %A) from buffer data %A with offset %A" i j (i * d.Rows + j) d.Rows _buffer.Data.Length _buffer.Data _buffer.Offset
             _buffer.Data.[_buffer.Offset + (i * d.Cols + j)]
         and set (i : int32, j : int32) value = _buffer.Data.[_buffer.Offset + (i * d.Cols + j)] <- value
     
