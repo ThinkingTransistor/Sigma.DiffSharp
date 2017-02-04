@@ -168,6 +168,8 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
     let checkshape (s : int64[]) = 
         if (s.Length <= 1) then
             failwithf "Internal error: Cannot create shaped data buffer view without columns dimension (rank <= 1, _shape: %A)" s
+        if ((s |> Array.fold (*) 1L) > (int64 buffer.Length)) then
+            failwithf "Internal error: Cannot create shaped data buffer view with smaller buffer than total shape length (buffer length = %A, shape = %A)" buffer.Length shape
         s
     let _buffer = buffer
     let mutable _shape = (checkshape(shape))
@@ -183,14 +185,13 @@ type ShapedDataBufferView<'T>(buffer : ISigmaDiffDataBuffer<'T>, [<ParamArray>] 
     member d.Shape
         with get() = _shape
         and set (v : int64[]) = 
-            if (v.Length <= 1) then
-                failwithf "Internal error: Cannot set shaped data buffer view shape without columns dimension (rank <= 1, _shape: %A)" v
-//            do printfn "set with shape %A" v
-            _shape <- v
+            _shape <- checkshape(v)
 
     member d.Item 
-        with get (i : int32, j : int32) = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)]
-        and set (i : int32, j : int32) value = _buffer.Data.[_buffer.Offset + (i * d.Rows + j)] <- value
+        with get (i : int32, j : int32) = 
+            printfn "get item %A %A (%A, num rows %A, buffer len %A) from buffer data %A with offset %A" i j (i * d.Rows + j) d.Rows _buffer.Data.Length _buffer.Data _buffer.Offset
+            _buffer.Data.[_buffer.Offset + (i * d.Cols + j)]
+        and set (i : int32, j : int32) value = _buffer.Data.[_buffer.Offset + (i * d.Cols + j)] <- value
     
     member d.FlatItem 
         with get (i : int32) = _buffer.Data.[_buffer.Offset + i]

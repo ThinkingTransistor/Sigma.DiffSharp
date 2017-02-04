@@ -1778,7 +1778,7 @@ and DNDArray =
             | DM(ap) -> D(ap.FlatItem(i))
             | DMF(ap, at, ai) -> DF(ap.FlatItem(i), at.FlatItem(i), ai)
             | DMR(ap, _, _, _, ai) -> 
-                DR(ap.FlatItem(i), ref (D number0), Item_DM(d, i / d.Rows, i % d.Rows), ref 0u, ai)
+                DR(ap.FlatItem(i), ref (D number0), Item_DM(d, i / d.Cols, i % d.Cols), ref 0u, ai)
     
     override d.ToString() = 
         let sb = System.Text.StringBuilder()
@@ -1793,7 +1793,7 @@ and DNDArray =
         sb.ToString()
     
     member d.GetSlice(rowStart, rowFinish, colStart, colFinish) =
-//        printfn "get slice4 %A %A %A %A" rowStart rowFinish colStart colFinish
+        printfn "get slice4 %A %A %A %A from %A" rowStart rowFinish colStart colFinish d.Buffer
         let rowStart = defaultArg rowStart 0
         let rowFinish = defaultArg rowFinish (d.Rows - 1)
         let colStart = defaultArg colStart 0
@@ -2809,6 +2809,7 @@ and DNDArray =
     static member AddItem(a : DNDArray, i : int, j : int, b : DNumber) = 
         let inline ff (a : ShapedDataBufferView<number>, b : number) = 
             let aa = a.DeepCopy()
+            printfn "add item - set number %A at %A %A in %A" b i j a
             aa.[i, j] <- b
             aa
         
@@ -2825,11 +2826,15 @@ and DNDArray =
     static member AddSubMatrix (a:DNDArray, i:int, j:int, b:DNDArray) =
         let inline ff(a:ShapedDataBufferView<number>, bb:ShapedDataBufferView<number>) = 
             let aa = a.DeepCopy()
+            printfn "add %A to %A at %A %A" bb aa i j
             for ii = 0 to b.Rows - 1 do
                 for jj = 0 to b.Cols - 1 do
+                    printfn "dest %A %A" (i + ii) (j + jj) 
                     let dest = aa.[i + ii, j + jj]
+                    printfn "src %A %A" ii jj
                     let src = bb.[ii, jj]
                     aa.[i + ii, j + jj] <- dest + src
+            printfn "done"
             aa
         let inline fd(a, b) = DNDArray.AddSubMatrix(a, i, j, b)
         let inline df_da(cp, ap, at) = at
@@ -3837,7 +3842,7 @@ module DOps =
                     match d with
                     | DR(_, _, o, _, _) -> 
 //                        printfn "pushrec %A" (v :?> DNumber).Value
-//                        printfn "traceop dnumber %A" (o.GetType())
+                        printfn "traceop dnumber %A" (o.GetType())
                         d.A <- d.A + (v :?> DNumber)
                         d.F <- d.F - 1u
                         if d.F = 0u then 
@@ -3931,7 +3936,7 @@ module DOps =
                     match d with
                     | DVR(_, _, o, _, _) -> 
 //                        printfn "pushrec %A" (v :?> DVector).Buffer
-//                        printfn "traceop dvector %A" (o.GetType())
+                        printfn "traceop dvector %A" (o.GetType())
                         d.A <- d.A + (v :?> DVector)
                         d.F <- d.F - 1u
                         if d.F = 0u then 
@@ -4095,7 +4100,7 @@ module DOps =
                     match d with
                     | DMR(_, _, o, _, _) -> 
 //                        printfn "pushrec %A" (v :?> DNDArray).Buffer
-//                        printfn "traceop dndarray %A" (o.GetType())
+                        printfn "traceop dndarray %A" (o.GetType())
 //                        printfn "before update d.A %A" d.A.Buffer
                         d.A <- d.A + (v :?> DNDArray)
 //                        printfn "after  update d.A %A" d.A.Buffer
