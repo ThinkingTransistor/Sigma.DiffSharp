@@ -456,110 +456,110 @@ type AD =
                                                                >> f.Invoke
                                                                >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
     
-    /// Laplacian of a vector-to-scalar function `f`
-    static member Laplacian(f : System.Func<DVector, DNumber>) = 
-        System.Func<DVector, DNumber>(DVector.DVtoADDV
-                                      >> (DiffSharp.AD.Float64.DiffOps.laplacian (DVector.ADDVtoDV
-                                                                                  >> f.Invoke
-                                                                                  >> DNumber.DtoADD))
-                                      >> DNumber.ADDtoD)
-    
-    /// Laplacian of a vector-to-scalar function `f`, at point `x`
-    static member Laplacian(f : System.Func<DVector, DNumber>, x : DVector) = 
-        DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.laplacian (DVector.ADDVtoDV
-                                                                  >> f.Invoke
-                                                                  >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
-    
-    /// Jacobian-vector product of a vector-to-vector function `f`, at point `x`, along vector `v`
-    static member Jacobianv(f : System.Func<DVector, DVector>, x : DVector, v : DVector) = 
-        DVector.ADDVtoDV 
-        <| DiffSharp.AD.Float64.DiffOps.jacobianv (DVector.ADDVtoDV
-                                                   >> f.Invoke
-                                                   >> DVector.DVtoADDV) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
-    
-    /// Transposed Jacobian-vector product of a vector-to-vector function `f`, at point `x`, along vector `v`
-    static member JacobianTv(f : System.Func<DVector, DVector>, x : DVector, v : DVector) = 
-        DVector.ADDVtoDV 
-        <| DiffSharp.AD.Float64.DiffOps.jacobianTv (DVector.ADDVtoDV
-                                                    >> f.Invoke
-                                                    >> DVector.DVtoADDV) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
-    
-    /// Jacobian of a vector-to-vector function `f`
-    static member Jacobian(f : System.Func<DVector, DVector>) = 
-        System.Func<DVector, DNDArray>(DVector.DVtoADDV
-                                       >> (DiffSharp.AD.Float64.DiffOps.jacobian (DVector.ADDVtoDV
-                                                                                  >> f.Invoke
-                                                                                  >> DVector.DVtoADDV))
-                                       >> DNDArray.ADDNDtoDND)
-    
-    /// Jacobian of a vector-to-vector function `f`, at point `x`
-    static member Jacobian(f : System.Func<DVector, DVector>, x : DVector) = 
-        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float64.DiffOps.jacobian (DVector.ADDVtoDV
-                                                                    >> f.Invoke
-                                                                    >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
-    
-    /// Transposed Jacobian of a vector-to-vector function `f`
-    static member JacobianT(f : System.Func<DVector, DVector>) = 
-        System.Func<DVector, DNDArray>(DVector.DVtoADDV
-                                       >> (DiffSharp.AD.Float64.DiffOps.jacobianT (DVector.ADDVtoDV
-                                                                                   >> f.Invoke
-                                                                                   >> DVector.DVtoADDV))
-                                       >> DNDArray.ADDNDtoDND)
-    
-    /// Transposed Jacobian of a vector-to-vector function `f`, at point `x`
-    static member JacobianT(f : System.Func<DVector, DVector>, x : DVector) = 
-        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float64.DiffOps.jacobianT (DVector.ADDVtoDV
-                                                                     >> f.Invoke
-                                                                     >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
-    
-    /// Hessian of a vector-to-scalar function `f`
-    static member Hessian(f : System.Func<DVector, DNumber>) = 
-        System.Func<DVector, DNDArray>(DVector.DVtoADDV
-                                       >> (DiffSharp.AD.Float64.DiffOps.hessian (DVector.ADDVtoDV
-                                                                                 >> f.Invoke
-                                                                                 >> DNumber.DtoADD))
-                                       >> DNDArray.ADDNDtoDND)
-    
-    /// Hessian of a vector-to-scalar function `f`, at point `x`
-    static member Hessian(f : System.Func<DVector, DNumber>, x : DVector) = 
-        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float64.DiffOps.hessian (DVector.ADDVtoDV
-                                                                   >> f.Invoke
-                                                                   >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
-    
-    /// Hessian-vector product of a vector-to-scalar function `f`, at point `x`
-    static member Hessianv(f : System.Func<DVector, DNumber>, x : DVector, v : DVector) = 
-        DVector.ADDVtoDV 
-        <| DiffSharp.AD.Float64.DiffOps.hessianv (DVector.ADDVtoDV
-                                                  >> f.Invoke
-                                                  >> DNumber.DtoADD) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
-    
-    /// Curl of a vector-to-vector function `f`. Supported only for functions with a three-by-three Jacobian matrix.
-    static member Curl(f : System.Func<DVector, DVector>) = 
-        System.Func<DVector, DVector>(DVector.DVtoADDV
-                                      >> (DiffSharp.AD.Float64.DiffOps.curl (DVector.ADDVtoDV
-                                                                             >> f.Invoke
-                                                                             >> DVector.DVtoADDV))
-                                      >> DVector.ADDVtoDV)
-    
-    /// Curl of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix.
-    static member Curl(f : System.Func<DVector, DVector>, x : DVector) = 
-        DVector.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.curl (DVector.ADDVtoDV
-                                                               >> f.Invoke
-                                                               >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
-    
-    /// Divergence of a vector-to-vector function `f`. Defined only for functions with a square Jacobian matrix.
-    static member Div(f : System.Func<DVector, DVector>) = 
-        System.Func<DVector, DNumber>(DVector.DVtoADDV
-                                      >> (DiffSharp.AD.Float64.DiffOps.div (DVector.ADDVtoDV
-                                                                            >> f.Invoke
-                                                                            >> DVector.DVtoADDV))
-                                      >> DNumber.ADDtoD)
-    
-    /// Divergence of a vector-to-vector function `f`, at point `x`. Defined only for functions with a square Jacobian matrix.
-    static member Div(f : System.Func<DVector, DVector>, x : DVector) = 
-        DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.div (DVector.ADDVtoDV
-                                                            >> f.Invoke
-                                                            >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
+//    /// Laplacian of a vector-to-scalar function `f`
+//    static member Laplacian(f : System.Func<DVector, DNumber>) = 
+//        System.Func<DVector, DNumber>(DVector.DVtoADDV
+//                                      >> (DiffSharp.AD.Float64.DiffOps.laplacian (DVector.ADDVtoDV
+//                                                                                  >> f.Invoke
+//                                                                                  >> DNumber.DtoADD))
+//                                      >> DNumber.ADDtoD)
+//    
+//    /// Laplacian of a vector-to-scalar function `f`, at point `x`
+//    static member Laplacian(f : System.Func<DVector, DNumber>, x : DVector) = 
+//        DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.laplacian (DVector.ADDVtoDV
+//                                                                  >> f.Invoke
+//                                                                  >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
+//    
+//    /// Jacobian-vector product of a vector-to-vector function `f`, at point `x`, along vector `v`
+//    static member Jacobianv(f : System.Func<DVector, DVector>, x : DVector, v : DVector) = 
+//        DVector.ADDVtoDV 
+//        <| DiffSharp.AD.Float64.DiffOps.jacobianv (DVector.ADDVtoDV
+//                                                   >> f.Invoke
+//                                                   >> DVector.DVtoADDV) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
+//    
+//    /// Transposed Jacobian-vector product of a vector-to-vector function `f`, at point `x`, along vector `v`
+//    static member JacobianTv(f : System.Func<DVector, DVector>, x : DVector, v : DVector) = 
+//        DVector.ADDVtoDV 
+//        <| DiffSharp.AD.Float64.DiffOps.jacobianTv (DVector.ADDVtoDV
+//                                                    >> f.Invoke
+//                                                    >> DVector.DVtoADDV) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
+//    
+//    /// Jacobian of a vector-to-vector function `f`
+//    static member Jacobian(f : System.Func<DVector, DVector>) = 
+//        System.Func<DVector, DNDArray>(DVector.DVtoADDV
+//                                       >> (DiffSharp.AD.Float64.DiffOps.jacobian (DVector.ADDVtoDV
+//                                                                                  >> f.Invoke
+//                                                                                  >> DVector.DVtoADDV))
+//                                       >> DNDArray.ADDNDtoDND)
+//    
+//    /// Jacobian of a vector-to-vector function `f`, at point `x`
+//    static member Jacobian(f : System.Func<DVector, DVector>, x : DVector) = 
+//        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float64.DiffOps.jacobian (DVector.ADDVtoDV
+//                                                                    >> f.Invoke
+//                                                                    >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
+//    
+//    /// Transposed Jacobian of a vector-to-vector function `f`
+//    static member JacobianT(f : System.Func<DVector, DVector>) = 
+//        System.Func<DVector, DNDArray>(DVector.DVtoADDV
+//                                       >> (DiffSharp.AD.Float64.DiffOps.jacobianT (DVector.ADDVtoDV
+//                                                                                   >> f.Invoke
+//                                                                                   >> DVector.DVtoADDV))
+//                                       >> DNDArray.ADDNDtoDND)
+//    
+//    /// Transposed Jacobian of a vector-to-vector function `f`, at point `x`
+//    static member JacobianT(f : System.Func<DVector, DVector>, x : DVector) = 
+//        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float64.DiffOps.jacobianT (DVector.ADDVtoDV
+//                                                                     >> f.Invoke
+//                                                                     >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
+//    
+//    /// Hessian of a vector-to-scalar function `f`
+//    static member Hessian(f : System.Func<DVector, DNumber>) = 
+//        System.Func<DVector, DNDArray>(DVector.DVtoADDV
+//                                       >> (DiffSharp.AD.Float64.DiffOps.hessian (DVector.ADDVtoDV
+//                                                                                 >> f.Invoke
+//                                                                                 >> DNumber.DtoADD))
+//                                       >> DNDArray.ADDNDtoDND)
+//    
+//    /// Hessian of a vector-to-scalar function `f`, at point `x`
+//    static member Hessian(f : System.Func<DVector, DNumber>, x : DVector) = 
+//        DNDArray.ADDNDtoDND <| DiffSharp.AD.Float64.DiffOps.hessian (DVector.ADDVtoDV
+//                                                                   >> f.Invoke
+//                                                                   >> DNumber.DtoADD) (x |> DVector.DVtoADDV)
+//    
+//    /// Hessian-vector product of a vector-to-scalar function `f`, at point `x`
+//    static member Hessianv(f : System.Func<DVector, DNumber>, x : DVector, v : DVector) = 
+//        DVector.ADDVtoDV 
+//        <| DiffSharp.AD.Float64.DiffOps.hessianv (DVector.ADDVtoDV
+//                                                  >> f.Invoke
+//                                                  >> DNumber.DtoADD) (x |> DVector.DVtoADDV) (v |> DVector.DVtoADDV)
+//    
+//    /// Curl of a vector-to-vector function `f`. Supported only for functions with a three-by-three Jacobian matrix.
+//    static member Curl(f : System.Func<DVector, DVector>) = 
+//        System.Func<DVector, DVector>(DVector.DVtoADDV
+//                                      >> (DiffSharp.AD.Float64.DiffOps.curl (DVector.ADDVtoDV
+//                                                                             >> f.Invoke
+//                                                                             >> DVector.DVtoADDV))
+//                                      >> DVector.ADDVtoDV)
+//    
+//    /// Curl of a vector-to-vector function `f`, at point `x`. Supported only for functions with a three-by-three Jacobian matrix.
+//    static member Curl(f : System.Func<DVector, DVector>, x : DVector) = 
+//        DVector.ADDVtoDV <| DiffSharp.AD.Float64.DiffOps.curl (DVector.ADDVtoDV
+//                                                               >> f.Invoke
+//                                                               >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
+//    
+//    /// Divergence of a vector-to-vector function `f`. Defined only for functions with a square Jacobian matrix.
+//    static member Div(f : System.Func<DVector, DVector>) = 
+//        System.Func<DVector, DNumber>(DVector.DVtoADDV
+//                                      >> (DiffSharp.AD.Float64.DiffOps.div (DVector.ADDVtoDV
+//                                                                            >> f.Invoke
+//                                                                            >> DVector.DVtoADDV))
+//                                      >> DNumber.ADDtoD)
+//    
+//    /// Divergence of a vector-to-vector function `f`, at point `x`. Defined only for functions with a square Jacobian matrix.
+//    static member Div(f : System.Func<DVector, DVector>, x : DVector) = 
+//        DNumber.ADDtoD <| DiffSharp.AD.Float64.DiffOps.div (DVector.ADDVtoDV
+//                                                            >> f.Invoke
+//                                                            >> DVector.DVtoADDV) (x |> DVector.DVtoADDV)
     
     /// Returns a specified number raised to the specified power.
     static member inline Pow(a : 'T, b : 'U) = a ** b

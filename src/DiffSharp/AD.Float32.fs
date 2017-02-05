@@ -1743,7 +1743,7 @@ and DNDArray =
 
     member d.DeepCopy() = 
         match d with
-        | DM(ap) -> DM(ap)
+        | DM(ap) -> DM(ap.DeepCopy())
         | DMF(ap, at, ai) -> DMF(ap.DeepCopy(), at.DeepCopy(), ai)
         | DMR(ap, aa, at, af, ai) -> DMR(ap.DeepCopy(), ref ((!aa).DeepCopy()), at, ref (!af), ai)
 
