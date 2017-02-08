@@ -3,7 +3,7 @@ DiffSharp: Differentiable Functional Programming
 
 ### Sigma.Diffsharp - Note
 
-Sigma.DiffSharp is a modified version of the DiffSharp library for integration with the [Sigma](https://github.com/GreekDictionary/Sigma) machine learning framework with support for ndarrays, multiple CLI backends and more datat types. Sigma.DiffSharp is not intended to be new release of the original DiffSharp library, but rather an adaption with a restricted featureset for interopability with the Sigma project.
+Sigma.DiffSharp is a modified version of the DiffSharp library for integration with the [Sigma](https://github.com/GreekDictionary/Sigma) machine learning framework with support for ndarrays, multiple CLI backends and more data types. Sigma.DiffSharp is not intended to be new release of the original DiffSharp library, but rather an adaption with a restricted featureset for interopability with the Sigma project.
 
 ### DiffSharp
 
