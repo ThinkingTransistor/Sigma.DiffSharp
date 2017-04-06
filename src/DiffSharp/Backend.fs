@@ -39,6 +39,36 @@ namespace DiffSharp.Backend
 
 open DiffSharp.Util
 
+type MapOp = 
+    | Mul
+    | Div
+    | Add
+    | Sub
+    | Pow_Ab
+    | Pow_Ba
+    | Atan2_Ab
+    | Atan2_Ba
+    | Log
+    | Log10
+    | Exp
+    | Sin
+    | Cos
+    | Tan
+    | Sqrt
+    | Sinh
+    | Cosh
+    | Tanh
+    | Asin
+    | Acos
+    | Atan
+    | Abs
+    | Sign
+    | Floor
+    | Ceiling
+    | Round
+    | ReL
+    | Sigmoid
+
 /// Interface for DiffSharp backends
 [<AllowNullLiteral>]
 type Backend<'T> = 
@@ -64,8 +94,10 @@ type Backend<'T> =
     abstract Solve_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T> option
     abstract SolveSymmetric_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T> option
     abstract Diagonal_M : ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
-    abstract Map_F_V : ('T -> 'T) * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
-    abstract Map2_F_V_V : ('T -> 'T -> 'T) * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Map_F_V : MapOp * ('T -> 'T) * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Map_F_S_V : 'T * MapOp * ('T -> 'T) * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+
+    abstract Map2_F_V_V : MapOp * ('T -> 'T -> 'T) * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract ReshapeCopy_MRows_V : ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
     // Matrix valued
     abstract Mul_Out_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
@@ -83,8 +115,9 @@ type Backend<'T> =
     abstract Inverse_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T> option
     abstract Det_M : ShapedDataBufferView<'T> -> 'T option
     abstract Transpose_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
-    abstract Map_F_M : ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
-    abstract Map2_F_M_M : ('T -> 'T -> 'T) * ShapedDataBufferView<'T> * ShapedDataBufferView<'T>
+    abstract Map_F_M : MapOp * ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Map_F_S_M : 'T * MapOp * ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Map2_F_M_M : MapOp * ('T -> 'T -> 'T) * ShapedDataBufferView<'T> * ShapedDataBufferView<'T>
      -> ShapedDataBufferView<'T>
     abstract ReshapeCopy_V_MRows : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
     abstract RepeatReshapeCopy_V_MRows : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>

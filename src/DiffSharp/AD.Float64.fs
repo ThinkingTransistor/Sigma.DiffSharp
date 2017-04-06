@@ -1111,7 +1111,7 @@ and DVector =
     
     /// Element-wise (Hadamard, Schur) product of `a` and `b`
     static member (.*) (a : DVector, b : DVector) = 
-        let inline ff (a, b) = Backend(a).Map2_F_V_V((*), a, b)
+        let inline ff (a, b) = Backend(a).Map2_F_V_V(MapOp.Mul, (*), a, b)
         let inline fd (a, b) = a .* b
         let inline df_da (cp, ap, at) = at .* b
         let inline df_db (cp, bp, bt) = a .* bt
@@ -1135,7 +1135,7 @@ and DVector =
     
     /// Element-wise (Hadamard, Schur) division of `a` and `b`
     static member (./) (a : DVector, b : DVector) = 
-        let inline ff (a, b) = Backend(a).Map2_F_V_V((/), a, b)
+        let inline ff (a, b) = Backend(a).Map2_F_V_V(MapOp.Div, (/), a, b)
         let inline fd (a, b) = a ./ b
         let inline df_da (cp, ap, at) = at ./ b
         let inline df_db (cp, bp, bt) = -bt .* cp ./ bp // cp = ap / bp
@@ -1147,7 +1147,7 @@ and DVector =
     
     /// Element-wise power of `a` and `b`
     static member Pow(a : DVector, b : DVector) = 
-        let inline ff (a, b) = Backend(a).Map2_F_V_V((fun x y -> x ** y), a, b)
+        let inline ff (a, b) = Backend(a).Map2_F_V_V(MapOp.Pow_Ab, (fun x y -> x ** y), a, b)
         let inline fd (a, b) = a ** b
         let inline df_da (cp, ap, at) = at .* (ap ** (b - D number1)) .* b
         let inline df_db (cp, bp, bt) = bt .* cp .* log a // cp = a ** bp
@@ -1159,7 +1159,7 @@ and DVector =
     
     /// Element-wise atan2 of `a` and `b`
     static member Atan2(a : DVector, b : DVector) = 
-        let inline ff (a, b) = Backend(a).Map2_F_V_V(atan2, a, b)
+        let inline ff (a, b) = Backend(a).Map2_F_V_V(MapOp.Atan2_Ab, atan2, a, b)
         let inline fd (a, b) = atan2 a b
         let inline df_da (cp, ap, at) = (at .* b) ./ ((ap .* ap) + (b .* b))
         let inline df_db (cp, bp, bt) = (-bt .* a) ./ ((a .* a) + (bp .* bp))
@@ -1207,7 +1207,7 @@ and DVector =
     
     /// Generate a vector where each element is scalar `a` divided by the corresponding element of vector `b`
     static member (/) (a : DNumber, b : DVector) = 
-        let inline ff (a, b) = Backend(a).Map_F_V((fun v -> a / v), b)
+        let inline ff (a, b) = Backend(a).Map_F_S_V(a, MapOp.Div, (fun v -> a / v), b)
         let inline fd (a, b) = a / b
         let inline df_da (cp, ap, at) = at / b
         let inline df_db (cp, bp, bt) = -bt .* (cp ./ bp) // cp = a / bp
@@ -1267,7 +1267,7 @@ and DVector =
     
     /// Generate a vector where each corresponding element of vector `a` is raised to the power of scalar `b`
     static member Pow(a : DVector, b : DNumber) = 
-        let inline ff (a, b) = Backend(a).Map_F_V((fun v -> v ** b), a)
+        let inline ff (a, b) = Backend(a).Map_F_S_V(b, MapOp.Pow_Ab, (fun v -> v ** b), a)
         let inline fd (a, b) = a ** b
         let inline df_da (cp, ap : DVector, at : DVector) = at .* (ap ** (b - D number1)) * b
         let inline df_db (cp, bp, bt) = bt * cp .* log a // cp = a ** bp
@@ -1280,7 +1280,7 @@ and DVector =
     
     /// Generate a vector where scalar `a` is raised to the power of each corresponding element of vector `b`
     static member Pow(a : DNumber, b : DVector) = 
-        let inline ff (a, b) = Backend(a).Map_F_V((fun v -> a ** v), b)
+        let inline ff (a, b) = Backend(a).Map_F_S_V(a, MapOp.Pow_Ba, (fun v -> a ** v), b)
         let inline fd (a : DNumber, b : DVector) = DVector.Pow(a, b)
         let inline df_da (cp, ap : DNumber, at : DNumber) = (at * (DVector.Pow(ap, b - D number1))) .* b
         let inline df_db (cp, bp, bt) = bt .* cp * log a // cp = a ** bp
@@ -1293,7 +1293,7 @@ and DVector =
     
     /// Generate a vector where each corresponding element of vector `a` is raised to the power of scalar `b`
     static member Atan2(a : DVector, b : DNumber) = 
-        let inline ff (a, b) = Backend(a).Map_F_V((fun v -> atan2 v b), a)
+        let inline ff (a, b) = Backend(a).Map_F_S_V(b, MapOp.Atan2_Ba, (fun v -> atan2 v b), a)
         let inline fd (a : DVector, b : DNumber) = DVector.Atan2(a, b)
         let inline df_da (cp, ap, at) = (at * b) ./ ((ap .* ap) + (b * b))
         let inline df_db (cp, bp, bt) = (-bt * a) ./ ((a .* a) + (bp * bp))
@@ -1305,7 +1305,7 @@ and DVector =
     
     /// Generate a vector where scalar `a` is raised to the power of each corresponding element of vector `b`
     static member Atan2(a : DNumber, b : DVector) = 
-        let inline ff (a, b) = Backend(a).Map_F_V((fun v -> atan2 a v), b)
+        let inline ff (a, b) = Backend(a).Map_F_S_V(a, MapOp.Atan2_Ab, (fun v -> atan2 a v), b)
         let inline fd (a : DNumber, b : DVector) = DVector.Atan2(a, b)
         let inline df_da (cp, ap, at) = (at * b) ./ ((ap * ap) + (b .* b))
         let inline df_db (cp, bp, bt) = (-bt * a) ./ ((a * a) + (bp .* bp))
@@ -1378,42 +1378,42 @@ and DVector =
     static member Atan2(a : int, b : DVector) = DVector.Atan2(D(toNumber a), b)
     
     static member Log(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(log, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Log, log, a)
         let inline fd (a) = log a
         let inline df (cp, ap, at) = at ./ ap
         let inline r (a) = Log_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Log10(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(log10, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Log10, log10, a)
         let inline fd (a) = log10 a
         let inline df (cp, ap : DVector, at : DVector) = at ./ (ap * log10Val())
         let inline r (a) = Log10_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Exp(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(exp, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Exp, exp, a)
         let inline fd (a) = exp a
         let inline df (cp, ap, at) = at .* cp // cp = exp ap
         let inline r (a) = Exp_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Sin(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(sin, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Sin, sin, a)
         let inline fd (a) = sin a
         let inline df (cp, ap : DVector, at : DVector) = at .* cos ap
         let inline r (a) = Sin_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Cos(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(cos, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Cos, cos, a)
         let inline fd (a) = cos a
         let inline df (cp, ap : DVector, at : DVector) = -at .* sin ap
         let inline r (a) = Cos_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Tan(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(tan, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Tan, tan, a)
         let inline fd (a) = tan a
         
         let inline df (cp, ap : DVector, at : DVector) = 
@@ -1431,28 +1431,28 @@ and DVector =
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Sqrt(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(sqrt, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Sqrt, sqrt, a)
         let inline fd (a) = sqrt a
         let inline df (cp : DVector, ap : DVector, at : DVector) = at ./ (D number2 * cp) // cp = sqrt ap
         let inline r (a) = Sqrt_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Sinh(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(sinh, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Sinh, sinh, a)
         let inline fd (a) = sinh a
         let inline df (cp : DVector, ap : DVector, at : DVector) = at .* cosh ap
         let inline r (a) = Sinh_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Cosh(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(cosh, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Cosh, cosh, a)
         let inline fd (a) = cosh a
         let inline df (cp : DVector, ap : DVector, at : DVector) = at .* sinh ap
         let inline r (a) = Cosh_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Tanh(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(tanh, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Tanh, tanh, a)
         let inline fd (a) = tanh a
         
         let inline df (cp : DVector, ap : DVector, at : DVector) = 
@@ -1463,56 +1463,56 @@ and DVector =
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Asin(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(asin, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Asin, asin, a)
         let inline fd (a) = asin a
         let inline df (cp : DVector, ap : DVector, at : DVector) = at ./ sqrt (D number1 - (ap .* ap))
         let inline r (a) = Asin_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Acos(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(acos, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Acos, acos, a)
         let inline fd (a) = acos a
         let inline df (cp : DVector, ap : DVector, at : DVector) = -at ./ sqrt (D number1 - (ap .* ap))
         let inline r (a) = Acos_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Atan(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(atan, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Atan, atan, a)
         let inline fd (a) = atan a
         let inline df (cp : DVector, ap : DVector, at : DVector) = at ./ sqrt (D number1 + (ap .* ap))
         let inline r (a) = Atan_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Abs(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(abs, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Abs, abs, a)
         let inline fd (a) = abs a
         let inline df (cp, ap, at) = at .* (DVector.Sign ap)
         let inline r (a) = Abs_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Sign(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(signummod, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Sign, signummod, a)
         let inline fd (a) = DVector.Sign a
         let inline df (cp, ap, at) = DVector.ZeroN a.Length
         let inline r (a) = Sign_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Floor(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(floor, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Floor, floor, a)
         let inline fd (a) = floor a
         let inline df (cp, ap, at) = DVector.ZeroN a.Length
         let inline r (a) = Floor_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Ceiling(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(ceil, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Ceiling, ceil, a)
         let inline fd (a) = ceil a
         let inline df (cp, ap, at) = DVector.ZeroN a.Length
         let inline r (a) = Ceil_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Round(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(round, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Round, round, a)
         let inline fd (a) = round a
         let inline df (cp, ap, at) = DVector.ZeroN a.Length
         let inline r (a) = Round_DV(a)
@@ -1577,14 +1577,14 @@ and DVector =
         DVector.Op_DV_DM(a, ff, fd, df, r)
     
     static member ReLU(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V(max number0, a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.ReL, max number0, a)
         let inline fd (a) = DVector.ReLU(a)
         let inline df (cp, ap, at) = at .* ((number1 + DVector.Sign(ap)) / number2)
         let inline r (a) = ReLU_DV(a)
         DVector.Op_DV_DV(a, ff, fd, df, r)
     
     static member Sigmoid(a : DVector) = 
-        let inline ff (a) = Backend(a).Map_F_V((fun v -> number1 / (number1 + exp -v)), a)
+        let inline ff (a) = Backend(a).Map_F_V(MapOp.Sigmoid, (fun v -> number1 / (number1 + exp -v)), a)
         let inline fd (a) = DVector.Sigmoid(a)
         let inline df (cp : DVector, ap, at) = at .* cp .* (number1 - cp)
         let inline r (a) = Sigmoid_DV(a)
@@ -2405,7 +2405,7 @@ and DNDArray =
     
     /// Element-wise (Hadamard, Schur) division `a` and `b`
     static member (./) (a : DNDArray, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map2_F_M_M((/), a, b)
+        let inline ff (a, b) = Backend(a).Map2_F_M_M(MapOp.Div, (/), a, b)
         let inline fd (a, b) = a ./ b
         let inline df_da (cp, ap, at) = at ./ b
         let inline df_db (cp, bp, bt) = -bt .* cp ./ bp // cp = ap / bp
@@ -2416,7 +2416,7 @@ and DNDArray =
         DNDArray.Op_DM_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Pow(a : DNDArray, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map2_F_M_M((fun x y -> x ** y), a, b)
+        let inline ff (a, b) = Backend(a).Map2_F_M_M(MapOp.Pow_Ab, (fun x y -> x ** y), a, b)
         let inline fd (a, b) = a ** b
         let inline df_da (cp, ap, at) = at .* (ap ** (b - D number1)) .* b
         let inline df_db (cp, bp, bt) = bt .* cp .* log a // cp = a ** bp
@@ -2427,7 +2427,7 @@ and DNDArray =
         DNDArray.Op_DM_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Atan2(a : DNDArray, b : DNDArray) = 
-        let inline ff (a, b) = Backend(a).Map2_F_M_M(atan2, a, b)
+        let inline ff (a, b) = Backend(a).Map2_F_M_M(MapOp.Atan2_Ab, atan2, a, b)
         let inline fd (a, b) = atan2 a b
         let inline df_da (cp, ap, at) = (at .* b) ./ ((ap .* ap) + (b .* b))
         let inline df_db (cp, bp, bt) = (-bt .* a) ./ ((a .* a) + (bp .* bp))
@@ -2471,7 +2471,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member (/) (a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> a / v), b)
+        let inline ff (a, b) = Backend(b).Map_F_S_M(a, MapOp.Div, (fun v -> a / v), b)
         let inline fd (a, b) = a / b
         let inline df_da (cp, ap, at) = at / b
         let inline df_db (cp, bp, bt) = -bt .* (cp ./ bp) // cp = a / bp
@@ -2531,7 +2531,7 @@ and DNDArray =
         DNDArray.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Pow(a : DNDArray, b : DNumber) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> v ** b), a)
+        let inline ff (a, b) = Backend(a).Map_F_S_M(b, MapOp.Pow_Ab, (fun v -> v ** b), a)
         let inline fd (a, b) = a ** b
         let inline df_da (cp, ap : DNDArray, at : DNDArray) = at .* (ap ** (b - D number1)) * b
         let inline df_db (cp, bp, bt) = bt * cp .* log a // cp = a ** bp
@@ -2543,7 +2543,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Pow(a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> a ** v), b)
+        let inline ff (a, b) = Backend(b).Map_F_S_M(a, MapOp.Pow_Ba, (fun v -> a ** v), b)
         let inline fd (a : DNumber, b : DNDArray) = DNDArray.Pow(a, b)
         let inline df_da (cp, ap : DNumber, at : DNumber) = at * (DNDArray.Pow(ap, b - D number1)) .* b
         let inline df_db (cp, bp, bt) = bt .* cp * log a // cp = a ** bp
@@ -2555,7 +2555,7 @@ and DNDArray =
         DNDArray.Op_D_DM_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Atan2(a : DNDArray, b : DNumber) = 
-        let inline ff (a, b) = Backend(a).Map_F_M((fun v -> atan2 v b), a)
+        let inline ff (a, b) = Backend(a).Map_F_S_M(b, MapOp.Atan2_Ab, (fun v -> atan2 v b), a)
         let inline fd (a : DNDArray, b : DNumber) = DNDArray.Atan2(a, b)
         let inline df_da (cp, ap, at) = (at * b) ./ ((ap .* ap) + (b * b))
         let inline df_db (cp, bp, bt) = (-bt * a) ./ ((a .* a) + (bp * bp))
@@ -2566,7 +2566,7 @@ and DNDArray =
         DNDArray.Op_DM_D_DM(a, b, ff, fd, df_da, df_db, df_dab, r_d_d, r_d_c, r_c_d)
     
     static member Atan2(a : DNumber, b : DNDArray) = 
-        let inline ff (a, b) = Backend(b).Map_F_M((fun v -> atan2 a v), b)
+        let inline ff (a, b) = Backend(b).Map_F_S_M(a, MapOp.Atan2_Ba, (fun v -> atan2 a v), b)
         let inline fd (a : DNumber, b : DNDArray) = DNDArray.Atan2(a, b)
         let inline df_da (cp, ap, at) = (at * b) ./ ((ap * ap) + (b .* b))
         let inline df_db (cp, bp, bt) = (-bt * a) ./ ((a * a) + (bp .* bp))
@@ -2606,42 +2606,42 @@ and DNDArray =
     static member Atan2(a : int, b : DNDArray) = DNDArray.Atan2(D(toNumber a), b)
     
     static member Log(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(log, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Log, log, a)
         let inline fd (a) = log a
         let inline df (cp, ap, at) = at ./ ap
         let inline r (a) = Log_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Log10(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(log10, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Log10, log10, a)
         let inline fd (a) = log10 a
         let inline df (cp, ap : DNDArray, at : DNDArray) = at ./ (ap * log10Val())
         let inline r (a) = Log10_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Exp(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(exp, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Exp, exp, a)
         let inline fd (a) = exp a
         let inline df (cp, ap, at) = at .* cp // cp = exp ap
         let inline r (a) = Exp_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Sin(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(sin, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Sin, sin, a)
         let inline fd (a) = sin a
         let inline df (cp, ap : DNDArray, at : DNDArray) = at .* cos ap
         let inline r (a) = Sin_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Cos(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(cos, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Cos, cos, a)
         let inline fd (a) = cos a
         let inline df (cp, ap : DNDArray, at : DNDArray) = -at .* sin ap
         let inline r (a) = Cos_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Tan(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(tan, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Tan, tan, a)
         let inline fd (a) = tan a
         
         let inline df (cp, ap : DNDArray, at : DNDArray) = 
@@ -2659,28 +2659,28 @@ and DNDArray =
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Sqrt(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(sqrt, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Sqrt, sqrt, a)
         let inline fd (a) = sqrt a
         let inline df (cp : DNDArray, ap : DNDArray, at : DNDArray) = at ./ (D number2 * cp) // cp = sqrt ap
         let inline r (a) = Sqrt_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Sinh(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(sinh, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Sinh, sinh, a)
         let inline fd (a) = sinh a
         let inline df (cp : DNDArray, ap : DNDArray, at : DNDArray) = at .* cosh ap
         let inline r (a) = Sinh_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Cosh(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(cosh, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Cosh, cosh, a)
         let inline fd (a) = cosh a
         let inline df (cp : DNDArray, ap : DNDArray, at : DNDArray) = at .* sinh ap
         let inline r (a) = Cosh_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Tanh(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(tanh, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Tanh, tanh, a)
         let inline fd (a) = tanh a
         
         let inline df (cp : DNDArray, ap : DNDArray, at : DNDArray) = 
@@ -2691,56 +2691,56 @@ and DNDArray =
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Asin(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(asin, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Asin, asin, a)
         let inline fd (a) = asin a
         let inline df (cp : DNDArray, ap : DNDArray, at : DNDArray) = at ./ sqrt (D number1 - (ap .* ap))
         let inline r (a) = Asin_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Acos(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(acos, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Acos, acos, a)
         let inline fd (a) = acos a
         let inline df (cp : DNDArray, ap : DNDArray, at : DNDArray) = -at ./ sqrt (D number1 - (ap .* ap))
         let inline r (a) = Acos_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Atan(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(atan, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Atan, atan, a)
         let inline fd (a) = atan a
         let inline df (cp : DNDArray, ap : DNDArray, at : DNDArray) = at ./ sqrt (D number1 + (ap .* ap))
         let inline r (a) = Atan_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Abs(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(abs, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Abs, abs, a)
         let inline fd (a) = abs a
         let inline df (cp, ap, at) = at .* (DNDArray.Sign ap)
         let inline r (a) = Abs_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Sign(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(signummod, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Sign, signummod, a)
         let inline fd (a) = DNDArray.Sign a
         let inline df (cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r (a) = Sign_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Floor(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(floor, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Floor, floor, a)
         let inline fd (a) = floor a
         let inline df (cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r (a) = Floor_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Ceiling(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(ceil, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Ceiling, ceil, a)
         let inline fd (a) = ceil a
         let inline df (cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r (a) = Ceil_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Round(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(round, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Round, round, a)
         let inline fd (a) = round a
         let inline df (cp, ap, at) = DNDArray.ZeroMN a.Rows a.Cols (Backend(cp))
         let inline r (a) = Round_DM(a)
@@ -2890,14 +2890,14 @@ and DNDArray =
         DNDArray.Op_DM_D(a, ff, fd, df, r)
     
     static member ReLU(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M(max number0, a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.ReL, max number0, a)
         let inline fd (a) = DNDArray.ReLU(a)
         let inline df (cp, ap, at) = at .* ((number1 + DNDArray.Sign(ap)) / number2)
         let inline r (a) = ReLU_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
     static member Sigmoid(a : DNDArray) = 
-        let inline ff (a) = Backend(a).Map_F_M((fun v -> number1 / (number1 + exp -v)), a)
+        let inline ff (a) = Backend(a).Map_F_M(MapOp.Sigmoid, (fun v -> number1 / (number1 + exp -v)), a)
         let inline fd (a) = DNDArray.Sigmoid(a)
         let inline df (cp : DNDArray, ap, at) = at .* cp .* (number1 - cp)
         let inline r (a) = Sigmoid_DM(a)
