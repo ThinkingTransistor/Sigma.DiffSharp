@@ -4095,10 +4095,9 @@ module DOps =
                     match d with
                     | DMR(_, _, o, _, _) -> 
 //                        printfn "pushrec %A" (v :?> DNDArray).Buffer
-//                        printfn "traceop dndarray %A" (o.GetType())
 //                        printfn "before update d.A %A" d.A.Buffer
                         d.A <- d.A + (v :?> DNDArray)
-//                        printfn "after  update d.A %A" d.A.Buffer
+//                        printfn "after  update d.A %A" d.A.Buffer             
                         d.F <- d.F - 1u
                         if d.F = 0u then 
                             match o with
@@ -4108,13 +4107,20 @@ module DOps =
                             | Sub_DM_DMCons(a) -> pushRec ((bx d.A a) :: t)
                             | Sub_DMCons_DM(a) -> pushRec ((bx -d.A a) :: t)
                             | Mul_DM_DM(a, b) -> 
-                                pushRec 
-                                    ((bx (d.A * DNDArray.Transpose(b.P)) a) 
-                                     :: (bx (DNDArray.Transpose(a.P) * d.A) b) :: t)
-                            | Mul_DM_DMCons(a, cons) -> pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
+                                let pushLeft = d.A * DNDArray.Transpose(b.P)
+                                let pushRight = DNDArray.Transpose(a.P) * d.A
+//                                printfn "mul_dm_dm"
+//                                printfn "d.A %A\na.P %A\nb.P %A" d.A.Buffer a.P.Buffer b.P.Buffer
+//                                printfn "pushleft %A\npushright %A " pushLeft.Buffer pushRight.Buffer
+                                pushRec ((bx pushLeft a) :: (bx pushRight b) :: t)
+                            | Mul_DM_DMCons(a, cons) -> 
+                                pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
                             | Mul_DMCons_DM(cons, b) -> 
-                                let transcons = DNDArray.Transpose(cons);
+                                let transcons = DNDArray.Transpose(cons)
                                 let result = transcons * d.A
+//                                printfn "mul_dmcons_dm"
+//                                printfn "d.A %A\ntranscons %A" d.A.Buffer transcons.Buffer
+//                                printfn "result %A" result.Buffer
                                 pushRec ((bx (result) b) :: t)
                             | Mul_Had_DM_DM(a, b) -> pushRec ((bx (d.A .* b.P) a) :: (bx (d.A .* a.P) b) :: t)
                             | Mul_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons) a) :: t)
