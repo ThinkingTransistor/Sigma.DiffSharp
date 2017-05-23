@@ -613,7 +613,7 @@ and DVector =
         match d with
         | DV(ap) -> DV(ap.ShallowCopy())
         | DVF(ap, at, ai) -> DVF(ap.ShallowCopy(), at.ShallowCopy(), ai)
-        | DVR(ap, aa, at, af, ai) -> DVR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+        | DVR(ap, aa, at, af, ai) -> DVR(ap.ShallowCopy(), aa, at, ref (!af), ai)
     
     member d.DeepCopy() = 
         match d with
@@ -1733,13 +1733,14 @@ and DNDArray =
         data
 
     member d.GetForward(t : DNDArray, i : uint32) = DMF(d, t, i)
-    member d.GetReverse(i : uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols (Backend(d))), Noop, ref 0u, i)
+    member d.GetReverse(i : uint32) = 
+        DMR(d, ref (DM(ShapedDataBufferView(Backend(d).CreateDataBuffer(Array.create (d.Buffer.Length) number0), d.Buffer.Shape))), Noop, ref 0u, i)
     
     member d.ShallowCopy() = 
         match d with
         | DM(ap) -> DM(ap.ShallowCopy())
         | DMF(ap, at, ai) -> DMF(ap.ShallowCopy(), at.ShallowCopy(), ai)
-        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), aa, at, ref (!af), ai)
 
     member d.DeepCopy() = 
         match d with
@@ -2907,7 +2908,8 @@ and DNDArray =
     static member SoftMax(a : DNDArray) = 
         let a' = a - DNDArray.Max(a)
         let e = exp a'
-        e / DNDArray.Sum(e)
+        let result = e / DNDArray.Sum(e)
+
     static member SoftSign(a : DNDArray) = a ./ (number1 + abs a)
     static member Mean(a : DNDArray) = DNDArray.Sum(a) / a.Length
     
@@ -4095,7 +4097,7 @@ module DOps =
                     match d with
                     | DMR(_, _, o, _, _) -> 
 //                        printfn "pushrec %A" (v :?> DNDArray).Buffer
-//                        printfn "before update d.A %A" d.A.Buffer
+//                        printfn "update d.A hash %A" (d.A.GetHashCode())
                         d.A <- d.A + (v :?> DNDArray)
 //                        printfn "after  update d.A %A" d.A.Buffer             
                         d.F <- d.F - 1u
@@ -4114,6 +4116,7 @@ module DOps =
 //                                printfn "pushleft %A\npushright %A " pushLeft.Buffer pushRight.Buffer
                                 pushRec ((bx pushLeft a) :: (bx pushRight b) :: t)
                             | Mul_DM_DMCons(a, cons) -> 
+//                                printfn "push to %A" (a.GetHashCode())
                                 pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
                             | Mul_DMCons_DM(cons, b) -> 
                                 let transcons = DNDArray.Transpose(cons)
