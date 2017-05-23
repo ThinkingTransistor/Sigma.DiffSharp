@@ -2908,7 +2908,6 @@ and DNDArray =
     static member SoftMax(a : DNDArray) = 
         let a' = a - DNDArray.Max(a)
         let e = exp a'
-        let result = e / DNDArray.Sum(e)
 
     static member SoftSign(a : DNDArray) = a ./ (number1 + abs a)
     static member Mean(a : DNDArray) = DNDArray.Sum(a) / a.Length
