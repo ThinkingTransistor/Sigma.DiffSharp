@@ -613,7 +613,7 @@ and DVector =
         match d with
         | DV(ap) -> DV(ap.ShallowCopy())
         | DVF(ap, at, ai) -> DVF(ap.ShallowCopy(), at.ShallowCopy(), ai)
-        | DVR(ap, aa, at, af, ai) -> DVR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+        | DVR(ap, aa, at, af, ai) -> DVR(ap.ShallowCopy(), aa, at, ref (!af), ai)
     
     member d.DeepCopy() = 
         match d with
@@ -1733,13 +1733,14 @@ and DNDArray =
         data
 
     member d.GetForward(t : DNDArray, i : uint32) = DMF(d, t, i)
-    member d.GetReverse(i : uint32) = DMR(d, ref (DNDArray.ZeroMN d.Rows d.Cols (Backend(d))), Noop, ref 0u, i)
+    member d.GetReverse(i : uint32) = 
+        DMR(d, ref (DM(ShapedDataBufferView(Backend(d).CreateDataBuffer(Array.create (d.Buffer.Length) number0), d.Buffer.Shape))), Noop, ref 0u, i)
     
     member d.ShallowCopy() = 
         match d with
         | DM(ap) -> DM(ap.ShallowCopy())
         | DMF(ap, at, ai) -> DMF(ap.ShallowCopy(), at.ShallowCopy(), ai)
-        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), ref ((!aa).ShallowCopy()), at, ref (!af), ai)
+        | DMR(ap, aa, at, af, ai) -> DMR(ap.ShallowCopy(), aa, at, ref (!af), ai)
 
     member d.DeepCopy() = 
         match d with
@@ -2908,6 +2909,7 @@ and DNDArray =
         let a' = a - DNDArray.Max(a)
         let e = exp a'
         e / DNDArray.Sum(e)
+
     static member SoftSign(a : DNDArray) = a ./ (number1 + abs a)
     static member Mean(a : DNDArray) = DNDArray.Sum(a) / a.Length
     
@@ -4095,10 +4097,9 @@ module DOps =
                     match d with
                     | DMR(_, _, o, _, _) -> 
 //                        printfn "pushrec %A" (v :?> DNDArray).Buffer
-//                        printfn "traceop dndarray %A" (o.GetType())
-//                        printfn "before update d.A %A" d.A.Buffer
+//                        printfn "update d.A hash %A" (d.A.GetHashCode())
                         d.A <- d.A + (v :?> DNDArray)
-//                        printfn "after  update d.A %A" d.A.Buffer
+//                        printfn "after  update d.A %A" d.A.Buffer             
                         d.F <- d.F - 1u
                         if d.F = 0u then 
                             match o with
@@ -4108,13 +4109,21 @@ module DOps =
                             | Sub_DM_DMCons(a) -> pushRec ((bx d.A a) :: t)
                             | Sub_DMCons_DM(a) -> pushRec ((bx -d.A a) :: t)
                             | Mul_DM_DM(a, b) -> 
-                                pushRec 
-                                    ((bx (d.A * DNDArray.Transpose(b.P)) a) 
-                                     :: (bx (DNDArray.Transpose(a.P) * d.A) b) :: t)
-                            | Mul_DM_DMCons(a, cons) -> pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
+                                let pushLeft = d.A * DNDArray.Transpose(b.P)
+                                let pushRight = DNDArray.Transpose(a.P) * d.A
+//                                printfn "mul_dm_dm"
+//                                printfn "d.A %A\na.P %A\nb.P %A" d.A.Buffer a.P.Buffer b.P.Buffer
+//                                printfn "pushleft %A\npushright %A " pushLeft.Buffer pushRight.Buffer
+                                pushRec ((bx pushLeft a) :: (bx pushRight b) :: t)
+                            | Mul_DM_DMCons(a, cons) -> 
+//                                printfn "push to %A" (a.GetHashCode())
+                                pushRec ((bx (d.A * DNDArray.Transpose(cons)) a) :: t)
                             | Mul_DMCons_DM(cons, b) -> 
-                                let transcons = DNDArray.Transpose(cons);
+                                let transcons = DNDArray.Transpose(cons)
                                 let result = transcons * d.A
+//                                printfn "mul_dmcons_dm"
+//                                printfn "d.A %A\ntranscons %A" d.A.Buffer transcons.Buffer
+//                                printfn "result %A" result.Buffer
                                 pushRec ((bx (result) b) :: t)
                             | Mul_Had_DM_DM(a, b) -> pushRec ((bx (d.A .* b.P) a) :: (bx (d.A .* a.P) b) :: t)
                             | Mul_Had_DM_DMCons(a, cons) -> pushRec ((bx (d.A .* cons) a) :: t)
