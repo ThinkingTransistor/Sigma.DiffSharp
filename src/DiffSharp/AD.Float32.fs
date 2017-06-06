@@ -3809,6 +3809,7 @@ module DOps =
                             | Ceil_DM(a) -> resetRec (box a :: t)
                             | Round_DM(a) -> resetRec (box a :: t)
                             | Transpose_DM(a) -> resetRec (box a :: t)
+                            | Permute_DM(a, dims) -> resetRec (box a :: t)
                             | Make_DM_ofDs(a) -> 
                                 resetRec (List.append (a
                                                        |> Array.map box
@@ -4240,6 +4241,7 @@ module DOps =
                             | Ceil_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
                             | Round_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
                             | Transpose_DM(a) -> pushRec ((bx (DNDArray.Transpose(d.A)) a) :: t)
+                            | Permute_DM(a, dims) -> pushRec ((bx (DNDArray.Permute(d.A, dims)) a) :: t)
                             | Make_DM_ofDs(a) -> 
                                 pushRec 
                                     (t 
