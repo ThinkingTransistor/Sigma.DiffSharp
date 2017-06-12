@@ -2747,6 +2747,14 @@ and DNDArray =
         let inline r (a) = Round_DM(a)
         DNDArray.Op_DM_DM(a, ff, fd, df, r)
     
+     /// Transpose of matrix `a`
+    static member Permute(a : DNDArray, dimensions : int[]) = 
+        let inline ff (a) = Backend(a).Permute_M(a, dimensions)
+        let inline fd (a) = DNDArray.Permute(a, dimensions)
+        let inline df (cp, ap, at) = DNDArray.Permute(at, dimensions)
+        let inline r (a) = Permute_DM(a, dimensions)
+        DNDArray.Op_DM_DM(a, ff, fd, df, r)
+
     /// Transpose of matrix `a`
     static member Transpose(a : DNDArray) = 
         let inline ff (a) = Backend(a).Transpose_M(a)
@@ -3201,6 +3209,7 @@ and TraceOp =
     | Ceil_DM of DNDArray
     | Round_DM of DNDArray
     | Transpose_DM of DNDArray
+    | Permute_DM of DNDArray * int[]
     | Make_DM_ofDs of DNumber []
     | Make_DMRows_ofDV of DVector
     | Make_DMRows_ofDVs of DVector []
@@ -3800,6 +3809,7 @@ module DOps =
                             | Ceil_DM(a) -> resetRec (box a :: t)
                             | Round_DM(a) -> resetRec (box a :: t)
                             | Transpose_DM(a) -> resetRec (box a :: t)
+                            | Permute_DM(a, dims) -> resetRec (box a :: t)
                             | Make_DM_ofDs(a) -> 
                                 resetRec (List.append (a
                                                        |> Array.map box
@@ -4231,6 +4241,7 @@ module DOps =
                             | Ceil_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
                             | Round_DM(a) -> pushRec ((bx DNDArray.Zero a) :: t)
                             | Transpose_DM(a) -> pushRec ((bx (DNDArray.Transpose(d.A)) a) :: t)
+                            | Permute_DM(a, dims) -> pushRec ((bx (DNDArray.Permute(d.A, dims)) a) :: t)
                             | Make_DM_ofDs(a) -> 
                                 pushRec 
                                     (t 
