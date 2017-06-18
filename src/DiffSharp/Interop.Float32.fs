@@ -364,6 +364,7 @@ and DNDArray(m : ADDND) =
     static member Sum(a : DNDArray) = DNumber(ADDND.Sum(a.asADDND))
     static member Transpose(a : DNDArray) = DNDArray(ADDND.Transpose(a.asADDND))
     static member Permute(a : DNDArray, dims : int[]) = DNDArray(ADDND.Permute(a.asADDND, dims))
+    static member Reshape(a : DNDArray, newShape : int64[]) = DNDArray(ADDND.Reshape(a.asADDND, newShape))
     static member Diagonal(a : DNDArray) = DVector(ADDND.Diagonal(a.asADDND))
     static member Trace(a : DNDArray) = DNumber(ADDND.Trace(a.asADDND))
     static member Solve(a : DNDArray, b : DVector) = DVector(ADDND.Solve(a.asADDND, b.asADDV))

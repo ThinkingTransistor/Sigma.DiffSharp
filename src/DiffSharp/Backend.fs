@@ -116,6 +116,7 @@ type Backend<'T> =
     abstract Det_M : ShapedDataBufferView<'T> -> 'T option
     abstract Transpose_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Permute_M : ShapedDataBufferView<'T> * int[] -> ShapedDataBufferView<'T>
+    abstract Reshape_M : ShapedDataBufferView<'T> * int64[] -> ShapedDataBufferView<'T>
     abstract Map_F_M : MapOp * ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Map_F_S_M : 'T * MapOp * ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Map2_F_M_M : MapOp * ('T -> 'T -> 'T) * ShapedDataBufferView<'T> * ShapedDataBufferView<'T>
