@@ -1734,7 +1734,7 @@ and DNDArray =
 
     member d.GetForward(t : DNDArray, i : uint32) = DMF(d, t, i)
     member d.GetReverse(i : uint32) = 
-        DMR(d, ref (DM(ShapedDataBufferView(Backend(d).CreateDataBuffer(Array.create (d.Buffer.Length) number0), d.Buffer.Shape))), Noop, ref 0u, i)
+        DMR(d, ref (DM(ShapedDataBufferView(Backend(d).CreateDataBuffer(Backend(d).CreateZeroArray(d.Buffer.Length)), d.Buffer.Shape))), Noop, ref 0u, i)
     
     member d.ShallowCopy() = 
         match d with
@@ -1811,14 +1811,14 @@ and DNDArray =
         match d with
         | DM(ap) -> DV(ap.[row, colStart..colFinish].DataBuffer)
         | DMF(ap,at,ai) -> DVF(ap.[row, colStart..colFinish], at.[row, colStart..colFinish], ai)
-        | DMR(ap,_,_,_,ai) -> let cp = ap.[row, colStart..colFinish] in DVR(cp, ref (DV((Backend(d)).CreateDataBuffer(Array.zeroCreate cp.Length))), SliceRow_DM(d, row, colStart), ref 0u, ai)
+        | DMR(ap,_,_,_,ai) -> let cp = ap.[row, colStart..colFinish] in DVR(cp, ref (DV((Backend(d)).CreateDataBuffer((Backend(d)).CreateZeroArray(cp.Length)))), SliceRow_DM(d, row, colStart), ref 0u, ai)
 
     member d.GetRows() =
         seq {for i = 0 to d.Rows - 1 do yield d.[i,*]}
 
     static member Zero = DM(ShapedDataBufferView(NativeDataBuffer<number>(Array.empty), int64 0, int64 0))
     static member ZeroMN m n (b : Backend<number>) = 
-        DM(ShapedDataBufferView(b.CreateDataBuffer(Array.create (m * n) number0), int64 m, int64 n))
+        DM(ShapedDataBufferView(b.CreateDataBuffer(b.CreateZeroArray(m * n)), int64 m, int64 n))
     
     static member OfRows(s : seq<DVector>, b : Backend<number>) = 
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
@@ -1845,7 +1845,7 @@ and DNDArray =
     static member OfDNumberArray(m : int, a : DNumber [], backend : Backend<number>) = 
         let n = a.Length / m
         let size = m * n
-        let data = Array.create size number0
+        let data = backend.CreateZeroArray(size)
         for i = 0 to a.Length - 1 do
             data.[i] <- float a.[i] //type dependent operation #TDO
         match a.[0] with
@@ -1863,7 +1863,7 @@ and DNDArray =
         let size = m * n
         let mutable result = a
         if (m % a.Length <> 0) then 
-            let result = Array.create size number0
+            let result = backend.CreateZeroArray(size)
             for i = 0 to a.Length - 1 do
                 result.[i] <- a.[i]
         DM(ShapedDataBufferView(backend.CreateDataBuffer(result), int64 m, int64 n))
@@ -3257,9 +3257,9 @@ module DV =
     let inline create n (v : 'a) (backend : Backend<number>) = 
         let at = typeof<'a>
         if at.Equals(typeof<DNumber>) then DVector.OfArray(Array.create n (unbox<DNumber> (box v)))
-        elif at.Equals(typeof<number>) then DV(backend.CreateDataBuffer(Array.create n (unbox<number> (box v))))
+        elif at.Equals(typeof<number>) then DV(backend.CreateDataBuffer(backend.CreateValueArray(n, (unbox<number> (box v)))))
         elif at.Equals(typeof<int>) then 
-            DV(backend.CreateDataBuffer(Array.create n (unbox<int> (box v) |> toNumber)))
+            DV(backend.CreateDataBuffer(backend.CreateValueArray(n, (unbox<int> (box v) |> toNumber))))
         else fail_with_invalid_type_message()
     
     /// Creates a vector with `n` zero elements
@@ -3427,8 +3427,8 @@ module DM =
     let inline create m n (v : 'a) (b : Backend<number>) = 
         let at = typeof<'a>
         if at.Equals(typeof<DNumber>) then DNDArray.OfDNumberArray(m, Array.create (m * n) (unbox<DNumber> (box v)), b)
-        elif at.Equals(typeof<number>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number> (box v)), b)
-        elif at.Equals(typeof<int>) then DNDArray.OfNumberArray(m, Array.create (m * n) (unbox<number> (box v)), b)
+        elif at.Equals(typeof<number>) then DNDArray.OfNumberArray(m, b.CreateValueArray((m * n), (unbox<number> (box v))), b)
+        elif at.Equals(typeof<int>) then DNDArray.OfNumberArray(m, b.CreateValueArray((m * n), (unbox<number> (box v))), b)
         else fail_with_invalid_type_message()
     
     /// Creates a matrix with `m` rows and `n` columns, where all entries are zero
