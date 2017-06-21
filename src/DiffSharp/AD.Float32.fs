@@ -1823,13 +1823,15 @@ and DNDArray =
     static member OfRows(s : seq<DVector>, b : Backend<number>) = 
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
         match Seq.head s with
-        | DV(_) -> 
-            DNDArray.OfNumberArray(Seq.length s, 
-                                   s
-                                   |> Seq.map DVector.op_Explicit
-                                   |> Seq.concat
-                                   |> Seq.toArray, 
-                                   b)
+        | DV(hbuffer) -> 
+            let length = Seq.length s
+            let n = hbuffer.Length
+            let outputBuffer = b.CreateUninitialisedArray(length * n)
+            let mutable offset = 0
+            for row in s do
+                System.Array.Copy(row.Buffer.Data, row.Buffer.Offset, outputBuffer, offset, n)
+                offset <- offset + n
+            DNDArray.OfNumberArray(length, outputBuffer, b)
         | DVF(_, _, ai) -> 
             let ap = s |> Seq.map (fun x -> x.P)
             let at = s |> Seq.map (fun x -> x.T)
@@ -1845,7 +1847,7 @@ and DNDArray =
     static member OfDNumberArray(m : int, a : DNumber [], backend : Backend<number>) = 
         let n = a.Length / m
         let size = m * n
-        let data = backend.CreateZeroArray(size)
+        let data = backend.CreateUninitialisedArray(size)
         for i = 0 to a.Length - 1 do
             data.[i] <- float32 a.[i] //type dependent operation #TDO
         match a.[0] with
@@ -1863,7 +1865,7 @@ and DNDArray =
         let size = m * n
         let mutable result = a
         if (m % a.Length <> 0) then 
-            let result = backend.CreateZeroArray(size)
+            let result = backend.CreateUninitialisedArray(size)
             for i = 0 to a.Length - 1 do
                 result.[i] <- a.[i]
         DM(ShapedDataBufferView(backend.CreateDataBuffer(result), int64 m, int64 n))
