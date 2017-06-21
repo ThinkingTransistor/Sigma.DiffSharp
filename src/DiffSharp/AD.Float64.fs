@@ -1843,6 +1843,13 @@ and DNDArray =
                 (cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols b), Make_DMRows_ofDVs(s |> Seq.toArray), ref 0u, 
                  ai)
     
+    static member OfRows (m : int, a : DVector, b : Backend<number>) =
+        match a with
+        | DV(ap) -> DM(b.RepeatReshapeCopy_V_MRows(m, ap))
+        | DVF(ap,at,ai) -> DMF(DNDArray.OfRows(m, ap, b), DNDArray.OfRows(m, at, b), ai)
+        | DVR(ap,_,_,_,ai) ->
+            let cp = DNDArray.OfRows(m, ap, b) in DMR(cp, ref (DNDArray.ZeroMN cp.Rows cp.Cols b), Make_DMRows_ofDV(a), ref 0u, ai)
+
     // Creates a matrix with `m` rows from array `a`, filling columns from left to right and rows from top to bottom. The number of columns will be deduced from `m` and the length of `a`. The length of `a` must be an integer multiple of `m`.
     static member OfDNumberArray(m : int, a : DNumber [], backend : Backend<number>) = 
         let n = a.Length / m
@@ -3399,14 +3406,7 @@ module DM =
     
     /// Transpose of matrix `m`
     let inline transpose (m : DNDArray) = DNDArray.Transpose(m)
-    
-    /// Creates a matrix from a sequence of row vectors `s`
-    let inline ofRows s = DNDArray.OfRows(s)
-    
-    /// Creates a matrix from a sequence of column vectors `s`
-    let inline ofCols (s : seq<DVector>, b : Backend<number>) = 
-        ofRows(s, b) |> transpose
-
+   
     /// Gets the sequence of row vectors in matrix `m`
     let inline toRows (m : DNDArray) = m.GetRows()
     
@@ -3823,6 +3823,7 @@ module DOps =
                                 resetRec (List.append (a
                                                        |> Array.map box
                                                        |> List.ofArray) t)
+                            | Make_DMRows_ofDV(a) -> resetRec (box a :: t)
                             | Make_DMRows_ofDVs(a) -> resetRec (List.append (a |> Array.map box |> List.ofArray) t)
                             | AddItem_DM_D(a, _, _, b) -> resetRec (box a :: box b :: t)
                             | AddItem_DM_DCons(a) -> resetRec (box a :: t)
@@ -4260,6 +4261,9 @@ module DOps =
                                                                                 |> DM.toDV
                                                                                 |> DV.toArray
                                                                                 |> Array.toList) (a |> List.ofArray)))
+                            | Make_DMRows_ofDV(a) ->
+                                d.A.GetRows() |> Seq.iter (fun v -> a.A <- a.A + v)
+                                pushRec ((bx DVector.Zero a) :: t)
                             | Make_DMRows_ofDVs(a) -> 
 //                                printfn "Make_DMRows_ofDVs d.A %A" d.A.Buffer
                                 let result = a |> List.ofArray |> List.mapi (fun i v -> 

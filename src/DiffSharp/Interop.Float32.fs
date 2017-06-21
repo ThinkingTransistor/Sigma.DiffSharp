@@ -394,6 +394,8 @@ and DNDArray(m : ADDND) =
     static member OfRows(rows : DNDArray[], b : Backend<number>) = 
         let rowsAsDVector = rows |> Array.map DNDArray.DNDtoADDND |> Array.map ADDND.ReshapeToDV
         ADDND.OfRows(rowsAsDVector, b)
+    static member OfRows(m : int, row : DNDArray, b : Backend<number>) =
+        ADDND.OfRows(m, row |> DNDArray.DNDtoADDND |> ADDND.ReshapeToDV, b) |> DNDArray.ADDNDtoDND
 
 /// Nested forward and reverse mode automatic differentiation module
 type AD = 
