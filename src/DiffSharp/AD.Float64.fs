@@ -1823,13 +1823,15 @@ and DNDArray =
     static member OfRows(s : seq<DVector>, b : Backend<number>) = 
         // TODO: check to ensure that all elements in the array are of the same type (D, DF, or DR) and have the same nesting tag
         match Seq.head s with
-        | DV(_) -> 
-            DNDArray.OfNumberArray(Seq.length s, 
-                                   s
-                                   |> Seq.map DVector.op_Explicit
-                                   |> Seq.concat
-                                   |> Seq.toArray, 
-                                   b)
+        | DV(hbuffer) -> 
+            let length = Seq.length s
+            let n = hbuffer.Length
+            let outputBuffer = b.CreateUninitialisedArray(length * n)
+            let mutable offset = 0
+            for row in s do
+                System.Array.Copy(row.Buffer.Data, row.Buffer.Offset, outputBuffer, offset, n)
+                offset <- offset + n
+            DNDArray.OfNumberArray(length, outputBuffer, b)
         | DVF(_, _, ai) -> 
             let ap = s |> Seq.map (fun x -> x.P)
             let at = s |> Seq.map (fun x -> x.T)
@@ -1845,9 +1847,9 @@ and DNDArray =
     static member OfDNumberArray(m : int, a : DNumber [], backend : Backend<number>) = 
         let n = a.Length / m
         let size = m * n
-        let data = backend.CreateZeroArray(size)
+        let data = backend.CreateUninitialisedArray(size)
         for i = 0 to a.Length - 1 do
-            data.[i] <- float a.[i] //type dependent operation #TDO
+            data.[i] <- float32 a.[i] //type dependent operation #TDO
         match a.[0] with
         | D(_) -> DM(ShapedDataBufferView(backend.CreateDataBuffer(data), int64 m, int64 n))
         | DF(_, _, ai) -> 
@@ -1863,7 +1865,7 @@ and DNDArray =
         let size = m * n
         let mutable result = a
         if (m % a.Length <> 0) then 
-            let result = backend.CreateZeroArray(size)
+            let result = backend.CreateUninitialisedArray(size)
             for i = 0 to a.Length - 1 do
                 result.[i] <- a.[i]
         DM(ShapedDataBufferView(backend.CreateDataBuffer(result), int64 m, int64 n))
@@ -2842,10 +2844,7 @@ and DNDArray =
         let inline ff(a:ShapedDataBufferView<number>, bb:ShapedDataBufferView<number>) = 
             let aa = a.DeepCopy()
             for ii = 0 to b.Rows - 1 do
-                for jj = 0 to b.Cols - 1 do
-                    let dest = aa.[i + ii, j + jj]
-                    let src = bb.[ii, jj]
-                    aa.[i + ii, j + jj] <- dest + src
+                Backend(a).Add_V_V_InPlace(bb.DataBuffer, ii * bb.Cols, aa.DataBuffer, (i + ii) * a.Cols + j, bb.Cols) |> ignore
             aa
         let inline fd(a, b) = DNDArray.AddSubMatrix(a, i, j, b)
         let inline df_da(cp, ap, at) = at
@@ -3637,7 +3636,8 @@ module DOps =
                 | :? DVector as d -> 
                     match d with
                     | DVR(_, _, o, _, _) -> 
-                        d.A <- DV((Backend(d.Buffer)).CreateDataBuffer(Array.zeroCreate d.Length))
+                        let backend = Backend(d.Buffer)
+                        d.A <- DV(backend.CreateDataBuffer(backend.CreateZeroArray(d.Buffer.Length)))
                         d.F <- d.F + 1u
                         if d.F = 1u then 
                             match o with

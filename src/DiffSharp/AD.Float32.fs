@@ -2844,10 +2844,7 @@ and DNDArray =
         let inline ff(a:ShapedDataBufferView<number>, bb:ShapedDataBufferView<number>) = 
             let aa = a.DeepCopy()
             for ii = 0 to b.Rows - 1 do
-                for jj = 0 to b.Cols - 1 do
-                    let dest = aa.[i + ii, j + jj]
-                    let src = bb.[ii, jj]
-                    aa.[i + ii, j + jj] <- dest + src
+                Backend(a).Add_V_V_InPlace(bb.DataBuffer, ii * bb.Cols, aa.DataBuffer, (i + ii) * a.Cols + j, bb.Cols) |> ignore
             aa
         let inline fd(a, b) = DNDArray.AddSubMatrix(a, i, j, b)
         let inline df_da(cp, ap, at) = at
