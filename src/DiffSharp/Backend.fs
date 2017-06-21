@@ -74,6 +74,7 @@ type MapOp =
 type Backend<'T> = 
     // Create buffer
     abstract CreateDataBuffer : 'T [] -> ISigmaDiffDataBuffer<'T>
+    abstract CreateUninitialisedArray : int -> 'T []
     abstract CreateZeroArray : int -> 'T []
     abstract CreateValueArray : int * 'T -> 'T []
     // Scalar valued

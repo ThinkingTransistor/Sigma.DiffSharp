@@ -3637,7 +3637,8 @@ module DOps =
                 | :? DVector as d -> 
                     match d with
                     | DVR(_, _, o, _, _) -> 
-                        d.A <- DV((Backend(d.Buffer)).CreateDataBuffer(Array.zeroCreate d.Length))
+                        let backend = Backend(d.Buffer)
+                        d.A <- DV(backend.CreateDataBuffer(backend.CreateZeroArray(d.Buffer.Length)))
                         d.F <- d.F + 1u
                         if d.F = 1u then 
                             match o with
