@@ -1849,7 +1849,7 @@ and DNDArray =
         let size = m * n
         let data = backend.CreateUninitialisedArray(size)
         for i = 0 to a.Length - 1 do
-            data.[i] <- float32 a.[i] //type dependent operation #TDO
+            data.[i] <- float a.[i] //type dependent operation #TDO
         match a.[0] with
         | D(_) -> DM(ShapedDataBufferView(backend.CreateDataBuffer(data), int64 m, int64 n))
         | DF(_, _, ai) -> 
