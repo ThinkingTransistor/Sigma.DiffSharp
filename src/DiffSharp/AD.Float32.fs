@@ -2960,13 +2960,7 @@ and DNDArray =
     
     /// Index of the maximum element of matrix `a`
     static member MaxIndex(a : DNDArray) = 
-        let mutable maxi = 0
-        let mutable maxv = a.FlatItem(0)
-        for i = 0 to a.Length - 1 do
-            if (a.FlatItem(i) > maxv) then 
-                do maxv <- a.FlatItem(i)
-                do maxi <- i
-        maxi
+        Backend(a).MaxIndex_V(a.Buffer.DataBuffer)
     
     static member Max(a : DNDArray) = 
         let maxi = DNDArray.MaxIndex(a)
@@ -2974,13 +2968,7 @@ and DNDArray =
     
     /// Index of the minimum element of matrix `a`
     static member MinIndex(a : DNDArray) = 
-        let mutable mini = 0
-        let mutable minv = a.FlatItem(0)
-        for i = 0 to a.Length - 1 do
-            if (a.FlatItem(i) < minv) then 
-                do minv <- a.FlatItem(i)
-                do mini <- i
-        mini
+        Backend(a).MinIndex_V(a.Buffer.DataBuffer)
     
     static member Min(a : DNDArray) = 
         let mini = DNDArray.MinIndex(a)

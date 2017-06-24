@@ -84,6 +84,8 @@ type Backend<'T> =
     abstract SupNorm_V : ISigmaDiffDataBuffer<'T> -> 'T
     abstract Sum_V : ISigmaDiffDataBuffer<'T> -> 'T
     abstract Sum_M : ISigmaDiffDataBuffer<'T> -> 'T
+    abstract MaxIndex_V : ISigmaDiffDataBuffer<'T> -> int
+    abstract MinIndex_V : ISigmaDiffDataBuffer<'T> -> int
     // Vector valued
     abstract Add_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Add_V_V_InPlace : ISigmaDiffDataBuffer<'T> * int * ISigmaDiffDataBuffer<'T> * int * int -> ISigmaDiffDataBuffer<'T>
