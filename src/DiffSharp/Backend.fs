@@ -108,6 +108,7 @@ type Backend<'T> =
     // Matrix valued
     abstract Mul_Out_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
     abstract Add_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
+    abstract Add_M_M_InPlace : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Add_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Add_V_MCols : ISigmaDiffDataBuffer<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Sub_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>

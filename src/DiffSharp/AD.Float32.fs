@@ -4097,10 +4097,7 @@ module DOps =
                 | :? DNDArray as d -> 
                     match d with
                     | DMR(_, _, o, _, _) -> 
-//                        printfn "pushrec %A" (v :?> DNDArray).Buffer
-//                        printfn "update d.A hash %A" (d.A.GetHashCode())
-                        d.A <- d.A + (v :?> DNDArray)
-//                        printfn "after  update d.A %A" d.A.Buffer             
+                        d.A <- DM(Backend(d).Add_M_M_InPlace(d.A.Buffer, (v :?> DNDArray).Buffer))
                         d.F <- d.F - 1u
                         if d.F = 0u then 
                             match o with
