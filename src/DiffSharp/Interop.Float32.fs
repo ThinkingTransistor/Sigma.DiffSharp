@@ -396,6 +396,8 @@ and DNDArray(m : ADDND) =
         ADDND.OfRows(rowsAsDVector, b)
     static member OfRows(m : int, row : DNDArray, b : Backend<number>) =
         ADDND.OfRows(m, row |> DNDArray.DNDtoADDND |> ADDND.ReshapeToDV, b) |> DNDArray.ADDNDtoDND
+    static member CustomOp(a : DNDArray, customInfo : obj) =
+        DNDArray(a.asADDND.CustomOp(customInfo));
 
 /// Nested forward and reverse mode automatic differentiation module
 type AD = 

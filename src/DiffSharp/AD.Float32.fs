@@ -634,6 +634,13 @@ and DVector =
             | DVF(ap, at, ai) -> DF(ap.[i], at.[i], ai)
             | DVR(ap, _, _, _, ai) -> DR(ap.[i], ref (D number0), Item_DV(d, i), ref 0u, ai)
     
+//    member d.CustomOp(customInfo : obj) = 
+//        match d with 
+//        | DV(ap) -> DV(Backend(ap).CustomOp_DV_Forward(ap, customInfo))
+//        | DVF(ap, at, ai) -> DVF(DV(Backend(ap).CustomOp_DV_Forward(ap.Buffer, customInfo)), DV(Backend(at).CustomOp_DV_Forward(at.Buffer, customInfo)), ai)
+//        | DVR(ap, _, _, _, ai) -> 
+//            DVR(DV(Backend(ap).CustomOp_DV_Forward(ap.Buffer, customInfo)), ref (DV(Backend(ap).CreateDataBuffer(Backend(ap).CreateZeroArray(d.Length)))), Custom_DV(d, customInfo), ref 0u, ai)
+
     member d.ToRowDM(backend : Backend<number>) = 
         match d with
         | DV(ap) -> 
@@ -1747,6 +1754,13 @@ and DNDArray =
         | DM(ap) -> DM(ap.DeepCopy())
         | DMF(ap, at, ai) -> DMF(ap.DeepCopy(), at.DeepCopy(), ai)
         | DMR(ap, aa, at, af, ai) -> DMR(ap.DeepCopy(), ref ((!aa).DeepCopy()), at, ref (!af), ai)
+
+    member d.CustomOp(customInfo : obj) = 
+        match d with 
+        | DM(ap) -> DM(Backend(ap).CustomOp_DM_Forward(ap, customInfo))
+        | DMF(ap, at, ai) -> DMF(DM(Backend(ap).CustomOp_DM_Forward(ap.Buffer, customInfo)), DM(Backend(at).CustomOp_DM_Forward(at.Buffer, customInfo)), ai)
+        | DMR(ap, _, _, _, ai) -> 
+            DMR(DM(Backend(ap).CustomOp_DM_Forward(ap.Buffer, customInfo)), ref (DNDArray.ZeroMN ap.Rows ap.Cols (Backend(ap))), Custom_DM(d, customInfo), ref 0u, ai)
 
     member d.Length = 
         match d with
@@ -2994,6 +3008,7 @@ and DNDArray =
 /// Operation types recorded in the evaluation trace
 and TraceOp = 
     // Scalar-valued operations
+    | Custom_D of DNumber * obj
     | Add_D_D of DNumber * DNumber
     | Add_D_DCons of DNumber
     | Sub_D_D of DNumber * DNumber
@@ -3043,6 +3058,7 @@ and TraceOp =
     | LogSumExp_DV of DVector
     | FixedPoint_D of DNumber * DNumber * DNumber * DNumber
     // Vector-valued operations
+    | Custom_DV of DVector * obj
     | Add_DV_DV of DVector * DVector
     | Add_DV_DVCons of DVector
     | Add_DV_D of DVector * DNumber
@@ -3136,6 +3152,7 @@ and TraceOp =
     | ReLU_DV of DVector
     | Sigmoid_DV of DVector
     // Matrix-valued operations
+    | Custom_DM of DNDArray * obj
     | Add_DM_DM of DNDArray * DNDArray
     | Add_DM_DMCons of DNDArray
     | Sub_DM_DM of DNDArray * DNDArray
@@ -3820,6 +3837,7 @@ module DOps =
                             | Inverse_DM(a) -> resetRec (box a :: t)
                             | ReLU_DM(a) -> resetRec (box a :: t)
                             | Sigmoid_DM(a) -> resetRec (box a :: t)
+                            | Custom_DM(a, c) -> resetRec (box a :: t)
                             | _ -> resetRec t
                         else resetRec t
                     | _ -> resetRec t
@@ -4260,6 +4278,7 @@ module DOps =
                                 pushRec ((bx (-dpt * d.A * dpt) a) :: t) // d.P = DM.Inverse(a.P)
                             | ReLU_DM(a) -> pushRec ((bx (d.A .* ((DNDArray.Sign(a.P) + number1) / number2)) a) :: t)
                             | Sigmoid_DM(a) -> pushRec ((bx (d.A .* d.P .* (number1 - d.P)) a) :: t) // d.P = DM.Sigmoid(a.P)
+                            | Custom_DM(a, c) -> pushRec((bx (DM(Backend(a).CustomOp_DM_Backward(a.P.Buffer, d.A.Buffer, d.P.Buffer, c))) a) :: t)
                             | _ -> pushRec t
                         else pushRec t
                     | _ -> pushRec t

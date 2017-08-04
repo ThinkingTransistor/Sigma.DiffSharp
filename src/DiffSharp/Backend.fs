@@ -88,22 +88,24 @@ type Backend<'T> =
     abstract MinIndex_V : ISigmaDiffDataBuffer<'T> -> int
     // Vector valued
     abstract Add_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
-    abstract Add_V_V_InPlace : ISigmaDiffDataBuffer<'T> * int * ISigmaDiffDataBuffer<'T> * int * int -> ISigmaDiffDataBuffer<'T>
+    abstract Add_V_V_InPlace : ISigmaDiffDataBuffer<'T> * int * ISigmaDiffDataBuffer<'T> * int * int
+     -> ISigmaDiffDataBuffer<'T>
     abstract Add_S_V : 'T * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Sub_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Sub_S_V : 'T * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Sub_V_S : ISigmaDiffDataBuffer<'T> * 'T -> ISigmaDiffDataBuffer<'T>
     abstract Mul_S_V : 'T * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Mul_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
-    abstract Mul_M_V_Add_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Mul_M_V_Add_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T>
+     -> ISigmaDiffDataBuffer<'T>
     abstract Mul_V_M : ISigmaDiffDataBuffer<'T> * ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Solve_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T> option
     abstract SolveSymmetric_M_V : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T> option
     abstract Diagonal_M : ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Map_F_V : MapOp * ('T -> 'T) * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Map_F_S_V : 'T * MapOp * ('T -> 'T) * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
-
-    abstract Map2_F_V_V : MapOp * ('T -> 'T -> 'T) * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
+    abstract Map2_F_V_V : MapOp * ('T -> 'T -> 'T) * ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T>
+     -> ISigmaDiffDataBuffer<'T>
     abstract ReshapeCopy_MRows_V : ShapedDataBufferView<'T> -> ISigmaDiffDataBuffer<'T>
     // Matrix valued
     abstract Mul_Out_V_V : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
@@ -122,8 +124,8 @@ type Backend<'T> =
     abstract Inverse_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T> option
     abstract Det_M : ShapedDataBufferView<'T> -> 'T option
     abstract Transpose_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
-    abstract Permute_M : ShapedDataBufferView<'T> * int[] -> ShapedDataBufferView<'T>
-    abstract Reshape_M : ShapedDataBufferView<'T> * int64[] -> ShapedDataBufferView<'T>
+    abstract Permute_M : ShapedDataBufferView<'T> * int [] -> ShapedDataBufferView<'T>
+    abstract Reshape_M : ShapedDataBufferView<'T> * int64 [] -> ShapedDataBufferView<'T>
     abstract Map_F_M : MapOp * ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Map_F_S_M : 'T * MapOp * ('T -> 'T) * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Map2_F_M_M : MapOp * ('T -> 'T -> 'T) * ShapedDataBufferView<'T> * ShapedDataBufferView<'T>
@@ -131,3 +133,11 @@ type Backend<'T> =
     abstract ReshapeCopy_V_MRows : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
     abstract RepeatReshapeCopy_V_MRows : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
     abstract RepeatReshapeCopy_V_MCols : int * ISigmaDiffDataBuffer<'T> -> ShapedDataBufferView<'T>
+    abstract CustomOp_DM_Forward : ShapedDataBufferView<'T> * obj -> ShapedDataBufferView<'T>
+    abstract CustomOp_DM_Backward : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> * ShapedDataBufferView<'T> * obj
+     -> ShapedDataBufferView<'T>
+
+     // TODO custom DV ops not yet supported, still testing custom DM ops
+//    abstract CustomOp_DV_Forward : ISigmaDiffDataBuffer<'T> * obj -> ISigmaDiffDataBuffer<'T>
+//    abstract CustomOp_DV_Backward : ISigmaDiffDataBuffer<'T> * ISigmaDiffDataBuffer<'T> * obj
+//     -> ISigmaDiffDataBuffer<'T>
