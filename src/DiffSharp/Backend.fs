@@ -120,6 +120,7 @@ type Backend<'T> =
     abstract Mul_S_M : 'T * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Mul_M_M_Add_V_MCols : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T>
      -> ShapedDataBufferView<'T>
+    abstract Add_M_Colwise_V_InPlace : ShapedDataBufferView<'T> * ISigmaDiffDataBuffer<'T> -> ISigmaDiffDataBuffer<'T>
     abstract Mul_Had_M_M : ShapedDataBufferView<'T> * ShapedDataBufferView<'T> -> ShapedDataBufferView<'T>
     abstract Inverse_M : ShapedDataBufferView<'T> -> ShapedDataBufferView<'T> option
     abstract Det_M : ShapedDataBufferView<'T> -> 'T option

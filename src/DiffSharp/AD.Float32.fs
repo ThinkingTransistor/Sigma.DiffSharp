@@ -4252,7 +4252,8 @@ module DOps =
                             | Make_DM_ofDs(a) -> 
                                 pushRec ((bx (DNDArray.Sum(d.A)) a) :: t)
                             | Make_DMRows_ofDV(a) ->
-                                d.A.GetRows() |> Seq.iter (fun v -> a.A <- a.A + v)
+                                Backend(d.A.Buffer).Add_M_Colwise_V_InPlace(d.A.Buffer, a.A.Buffer) |> ignore
+//                                d.A.GetRows() |> Seq.iter (fun v -> a.A <- a.A + v)
                                 pushRec ((bx DVector.Zero a) :: t)
                             | Make_DMRows_ofDVs(a) -> 
 //                                printfn "Make_DMRows_ofDVs d.A %A" d.A.Buffer
